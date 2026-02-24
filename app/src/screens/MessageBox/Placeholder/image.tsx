@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Image, StyleSheet, Text, View } from 'react-native';
-import GlassUI from 'rn-glass-ui';
+import GlassUI from '../../../components/GlassUI';
 import { IMAGEBACKGROUND } from '../../../utils/assets/images';
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from '../../ChatScreen/Input';
 

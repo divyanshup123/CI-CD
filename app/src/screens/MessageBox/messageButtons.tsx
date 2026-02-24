@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, TouchableOpacity, Image } from 'react-native';
-import GlassUI from 'rn-glass-ui';
+import GlassUI from '../../components/GlassUI';
 import Tts from 'react-native-tts';
 import Clipboard from '@react-native-clipboard/clipboard';
 import RNFS, { DownloadFileOptions } from 'react-native-fs';

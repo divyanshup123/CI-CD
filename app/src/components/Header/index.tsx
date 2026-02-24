@@ -1,6 +1,6 @@
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import GlassUI from 'rn-glass-ui';
+import GlassUI from '../GlassUI';
 import { BACK } from '../../utils/assets/images';
 import { HeaderProps } from '../../types/components';
 

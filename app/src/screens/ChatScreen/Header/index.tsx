@@ -1,6 +1,6 @@
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import GlassUI from 'rn-glass-ui';
+import GlassUI from '../../../components/GlassUI';
 import { BACK, CALL, VIDEO } from '../../../utils/assets/images';
 import { RoundButton } from '../../MessageBox/messageButtons';
 

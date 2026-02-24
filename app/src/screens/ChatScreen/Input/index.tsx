@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import React, { useState } from 'react';
-import GlassUI from 'rn-glass-ui';
+import GlassUI from '../../../components/GlassUI';
 import { RoundButton } from '../../MessageBox/messageButtons';
 import {
   ATTACHMENT,

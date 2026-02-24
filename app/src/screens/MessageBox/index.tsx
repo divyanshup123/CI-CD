@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import GlassUI from 'rn-glass-ui';
+import GlassUI from '../../components/GlassUI';
 import { Message, ReplyMessageType, User } from '../../types';
 import MessageButtons from './messageButtons';
 import RenderImage from './renderImage';
