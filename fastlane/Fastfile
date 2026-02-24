@@ -1,0 +1,13 @@
+default_platform(:android)
+
+platform :android do
+
+  desc "Build a signed release APK"
+  lane :build_release do
+    gradle(
+      task: "clean assembleRelease",
+      project_dir: "android/"
+    )
+  end
+
+end
