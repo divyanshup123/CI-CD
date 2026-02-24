@@ -1,0 +1,3560 @@
+diff --git a/node_modules/@react-native-voice/voice/.eslintrc b/node_modules/@react-native-voice/voice/.eslintrc
+deleted file mode 100644
+index ece9eec..0000000
+--- a/node_modules/@react-native-voice/voice/.eslintrc
++++ /dev/null
+@@ -1,3 +0,0 @@
+-{
+-  "extends": "@react-native-community"
+-}
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/android/build.gradle b/node_modules/@react-native-voice/voice/android/build.gradle
+index 8fce879..1f9c6f5 100644
+--- a/node_modules/@react-native-voice/voice/android/build.gradle
++++ b/node_modules/@react-native-voice/voice/android/build.gradle
+@@ -1,67 +1,126 @@
+-apply plugin: 'com.android.library'
++buildscript {
++  // Buildscript is evaluated before everything else so we can't use getExtOrDefault
++  def kotlin_version = rootProject.ext.has("kotlinVersion") ? rootProject.ext.get("kotlinVersion") : project.properties["Voice_kotlinVersion"]
+ 
+-repositories {
+-    mavenLocal()
+-    jcenter()
+-    maven {
+-        // For developing the library outside the context of the example app, expect `react-native`
+-        // to be installed at `./node_modules`.
+-        url "$projectDir/../node_modules/react-native/android"
+-    }
+-    maven {
+-        // For developing the example app.
+-        url "$projectDir/../../react-native/android"
+-    }
++  repositories {
++    google()
++    mavenCentral()
++  }
++
++  dependencies {
++    classpath "com.android.tools.build:gradle:7.2.1"
++    // noinspection DifferentKotlinGradleVersion
++    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
++  }
++}
++
++def reactNativeArchitectures() {
++  def value = rootProject.getProperties().get("reactNativeArchitectures")
++  return value ? value.split(",") : ["armeabi-v7a", "x86", "x86_64", "arm64-v8a"]
++}
++
++def isNewArchitectureEnabled() {
++  return rootProject.hasProperty("newArchEnabled") && rootProject.getProperty("newArchEnabled") == "true"
++}
++
++apply plugin: "com.android.library"
++apply plugin: "kotlin-android"
++
++if (isNewArchitectureEnabled()) {
++  apply plugin: "com.facebook.react"
++}
++
++def getExtOrDefault(name) {
++  return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties["Voice_" + name]
++}
++
++def getExtOrIntegerDefault(name) {
++  return rootProject.ext.has(name) ? rootProject.ext.get(name) : (project.properties["Voice_" + name]).toInteger()
+ }
+ 
+-def DEFAULT_COMPILE_SDK_VERSION = 28
+-def DEFAULT_BUILD_TOOLS_VERSION = "28.0.3"
+-def DEFAULT_TARGET_SDK_VERSION = 28
+-def DEFAULT_SUPPORT_LIB_VERSION = "28.0.0"
++def supportsNamespace() {
++  def parsed = com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION.tokenize('.')
++  def major = parsed[0].toInteger()
++  def minor = parsed[1].toInteger()
++
++  // Namespace support was added in 7.3.0
++  return (major == 7 && minor >= 3) || major >= 8
++}
+ 
+ android {
+-    compileSdkVersion rootProject.hasProperty('compileSdkVersion') ? rootProject.compileSdkVersion : DEFAULT_COMPILE_SDK_VERSION
+-    buildToolsVersion rootProject.hasProperty('buildToolsVersion') ? rootProject.buildToolsVersion : DEFAULT_BUILD_TOOLS_VERSION
+-
+-    defaultConfig {
+-        minSdkVersion 15
+-        targetSdkVersion rootProject.hasProperty('targetSdkVersion') ? rootProject.targetSdkVersion : DEFAULT_TARGET_SDK_VERSION
+-        versionCode 1
+-        versionName "1.0"
++  if (supportsNamespace()) {
++    namespace "com.wenkesj.voice"
++
++    sourceSets {
++      main {
++        manifest.srcFile "src/main/AndroidManifestNew.xml"
++      }
+     }
+-    buildTypes {
+-        release {
+-            minifyEnabled false
+-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+-        }
++  }
++
++  compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
++
++  defaultConfig {
++    minSdkVersion getExtOrIntegerDefault("minSdkVersion")
++    targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
++    buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
++
++  }
++
++  buildFeatures {
++    buildConfig true
++  }
++
++  buildTypes {
++    release {
++      minifyEnabled false
+     }
+-}
++  }
+ 
+-buildscript {
+-    if (project == rootProject) {
+-        repositories {
+-            jcenter()
+-        }
+-        dependencies {
+-            classpath 'com.android.tools.build:gradle:3.3.2'
+-
+-            // NOTE: Do not place your application dependencies here; they belong
+-            // in the individual module build.gradle files
+-        }
++  lintOptions {
++    disable "GradleCompatible"
++  }
++
++  compileOptions {
++    sourceCompatibility JavaVersion.VERSION_1_8
++    targetCompatibility JavaVersion.VERSION_1_8
++  }
++
++  sourceSets {
++    main {
++      if (isNewArchitectureEnabled()) {
++        java.srcDirs += [
++          "src/newarch",
++          // Codegen specs
++          "generated/java",
++          "generated/jni"
++        ]
++      } else {
++        java.srcDirs += ["src/oldarch"]
++      }
+     }
++  }
+ }
+ 
+-allprojects {
+-    repositories {
+-        jcenter()
+-    }
++repositories {
++  mavenCentral()
++  google()
+ }
+ 
+-def supportVersion = rootProject.hasProperty('supportLibVersion') ? rootProject.supportLibVersion : DEFAULT_SUPPORT_LIB_VERSION
++def kotlin_version = getExtOrDefault("kotlinVersion")
+ 
+ dependencies {
+-    implementation fileTree(dir: 'libs', include: ['*.jar'])
+-    testImplementation 'junit:junit:4.12'
+-    implementation "com.android.support:appcompat-v7:${supportVersion}"
+-    implementation 'com.facebook.react:react-native:+'
++  // For < 0.71, this will be from the local maven repo
++  // For > 0.71, this will be replaced by `com.facebook.react:react-android:$version` by react gradle plugin
++  //noinspection GradleDynamicVersion
++  implementation "com.facebook.react:react-native:+"
++  implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
++}
++
++if (isNewArchitectureEnabled()) {
++  react {
++    jsRootDir = file("../src/")
++    libraryName = "Voice"
++    codegenJavaPackageName = "com.wenkesj.voice"
++  }
+ }
+diff --git a/node_modules/@react-native-voice/voice/android/gradle.properties b/node_modules/@react-native-voice/voice/android/gradle.properties
+new file mode 100644
+index 0000000..b351020
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/android/gradle.properties
+@@ -0,0 +1,5 @@
++Voice_kotlinVersion=1.7.0
++Voice_minSdkVersion=21
++Voice_targetSdkVersion=31
++Voice_compileSdkVersion=31
++Voice_ndkversion=21.4.7075529
+diff --git a/node_modules/@react-native-voice/voice/android/src/main/VoiceSpec.kt b/node_modules/@react-native-voice/voice/android/src/main/VoiceSpec.kt
+new file mode 100644
+index 0000000..3f0c1ce
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/android/src/main/VoiceSpec.kt
+@@ -0,0 +1,55 @@
++package com.wenkesj.voice
++
++import com.facebook.react.bridge.Callback
++import com.facebook.react.bridge.Promise
++import com.facebook.react.bridge.ReactApplicationContext
++import com.facebook.react.bridge.ReadableMap
++
++abstract class VoiceSpec internal constructor(context: ReactApplicationContext) :
++  NativeVoiceAndroidSpec(context) {
++  private val voice = Voice(context)
++
++  override fun destroySpeech(callback: Callback) {
++    voice.destroySpeech(callback)
++  }
++
++  override fun startSpeech(locale: String, opts: ReadableMap, callback: Callback) {
++    voice.startSpeech(locale,opts,callback)
++  }
++
++  override fun stopSpeech(callback: Callback) {
++    voice.stopSpeech(callback)
++  }
++
++  override fun cancelSpeech(callback: Callback) {
++    voice.cancelSpeech(callback)
++  }
++
++  override fun isSpeechAvailable(callback: Callback) {
++    voice.isSpeechAvailable(callback)
++  }
++
++  override fun getSpeechRecognitionServices(promise: Promise) {
++    voice.getSpeechRecognitionServices(promise)
++  }
++
++  override fun isRecognizing(callback: Callback) {
++    voice.isRecognizing(callback)
++  }
++
++  override fun addListener(eventType: String) {
++
++  }
++
++  override fun removeListeners(count: Double) {
++
++  }
++
++    override fun getName(): String {
++    return NAME
++  }
++
++  companion object {
++    const val NAME = "Voice"
++  }
++}
+diff --git a/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/Voice.kt b/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/Voice.kt
+new file mode 100644
+index 0000000..58ba07b
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/Voice.kt
+@@ -0,0 +1,343 @@
++package com.wenkesj.voice
++
++import android.Manifest
++import android.annotation.SuppressLint
++import android.content.ComponentName
++import android.content.Intent
++import android.content.pm.PackageManager
++import android.os.Bundle
++import android.os.Handler
++import android.speech.RecognitionListener
++import android.speech.RecognitionService
++import android.speech.RecognizerIntent
++import android.speech.SpeechRecognizer
++import android.util.Log
++import androidx.annotation.Nullable
++import com.facebook.react.bridge.Arguments
++import com.facebook.react.bridge.Callback
++import com.facebook.react.bridge.Promise
++import com.facebook.react.bridge.ReactApplicationContext
++import com.facebook.react.bridge.ReactContext.RCTDeviceEventEmitter
++import com.facebook.react.bridge.ReadableMap
++import com.facebook.react.bridge.WritableMap
++import com.facebook.react.modules.core.PermissionAwareActivity
++import java.util.Locale
++
++
++class Voice (context:ReactApplicationContext):RecognitionListener {
++  val reactContext: ReactApplicationContext = context
++  private var speech: SpeechRecognizer? = null
++  private var isRecognizing = false
++  private var locale: String? = null
++
++  private fun getLocale(locale: String?): String {
++    if (locale != null && locale != "") {
++      return locale
++    }
++    return Locale.getDefault().toString()
++  }
++
++  private fun startListening(opts: ReadableMap) {
++    if (speech != null) {
++      speech?.destroy()
++      speech = null
++    }
++
++    speech = if (opts.hasKey("RECOGNIZER_ENGINE")) {
++      when (opts.getString("RECOGNIZER_ENGINE")) {
++        "GOOGLE" -> {
++          SpeechRecognizer.createSpeechRecognizer(
++            this.reactContext,
++            ComponentName.unflattenFromString("com.google.android.googlequicksearchbox/com.google.android.voicesearch.serviceapi.GoogleRecognitionService")
++          )
++        }
++
++        else -> SpeechRecognizer.createSpeechRecognizer(this.reactContext)
++      }
++    } else {
++      SpeechRecognizer.createSpeechRecognizer(this.reactContext)
++    }
++
++    speech?.setRecognitionListener(this)
++
++    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
++
++    // Load the intent with options from JS
++    val iterator = opts.keySetIterator()
++    while (iterator.hasNextKey()) {
++      val key = iterator.nextKey()
++      when (key) {
++        "EXTRA_LANGUAGE_MODEL" -> when (opts.getString(key)) {
++          "LANGUAGE_MODEL_FREE_FORM" -> intent.putExtra(
++            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
++            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
++          )
++
++          "LANGUAGE_MODEL_WEB_SEARCH" -> intent.putExtra(
++            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
++            RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH
++          )
++
++          else -> intent.putExtra(
++            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
++            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
++          )
++        }
++
++        "EXTRA_MAX_RESULTS" -> {
++          val extras = opts.getDouble(key)
++          intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, extras.toInt())
++        }
++
++        "EXTRA_PARTIAL_RESULTS" -> {
++          intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, opts.getBoolean(key))
++        }
++
++        "EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS" -> {
++          val extras = opts.getDouble(key)
++          intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, extras.toInt())
++        }
++
++        "EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS" -> {
++          val extras = opts.getDouble(key)
++          intent.putExtra(
++            RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
++            extras.toInt()
++          )
++        }
++
++        "EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS" -> {
++          val extras = opts.getDouble(key)
++          intent.putExtra(
++            RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
++            extras.toInt()
++          )
++        }
++      }
++    }
++
++    intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, getLocale(this.locale))
++    speech?.startListening(intent)
++  }
++
++  private fun startSpeechWithPermissions(locale: String, opts: ReadableMap, callback: Callback) {
++    this.locale = locale
++
++    val mainHandler = Handler(reactContext.mainLooper)
++    mainHandler.post {
++      try {
++        startListening(opts)
++        isRecognizing = true
++        callback.invoke(false)
++      } catch (e: Exception) {
++        callback.invoke(e.message)
++      }
++    }
++  }
++
++  fun startSpeech(locale: String?, opts: ReadableMap, callback: Callback?) {
++    if (!isPermissionGranted() && opts.getBoolean("REQUEST_PERMISSIONS_AUTO")) {
++      val PERMISSIONS = arrayOf<String>(Manifest.permission.RECORD_AUDIO)
++      if (reactContext.currentActivity != null) {
++        (reactContext.currentActivity as PermissionAwareActivity).requestPermissions(
++          PERMISSIONS, 1
++        ) { requestCode, permissions, grantResults ->
++          var permissionsGranted = true
++          for (i in permissions.indices) {
++            val granted = grantResults[i] == PackageManager.PERMISSION_GRANTED
++            permissionsGranted = permissionsGranted && granted
++          }
++          startSpeechWithPermissions(locale!!, opts, callback!!)
++          permissionsGranted
++        }
++      }
++      return
++    }
++    startSpeechWithPermissions(locale!!, opts, callback!!)
++  }
++
++
++  fun stopSpeech(callback: Callback) {
++    val mainHandler = Handler(reactContext.mainLooper)
++    mainHandler.post {
++      try {
++        if (speech != null) {
++          speech!!.stopListening()
++        }
++        isRecognizing = false
++        callback.invoke(false)
++      } catch (e: java.lang.Exception) {
++        callback.invoke(e.message)
++      }
++    }
++  }
++
++  fun cancelSpeech(callback: Callback) {
++    val mainHandler = Handler(reactContext.mainLooper)
++    mainHandler.post {
++      try {
++        if (speech != null) {
++          speech!!.cancel()
++        }
++        isRecognizing = false
++        callback.invoke(false)
++      } catch (e: java.lang.Exception) {
++        callback.invoke(e.message)
++      }
++    }
++  }
++
++  fun destroySpeech(callback: Callback) {
++    val mainHandler = Handler(reactContext.mainLooper)
++    mainHandler.post {
++      try {
++        if (speech != null) {
++          speech!!.destroy()
++        }
++        speech = null
++        isRecognizing = false
++        callback.invoke(false)
++      } catch (e: java.lang.Exception) {
++        callback.invoke(e.message)
++      }
++    }
++  }
++
++  fun isSpeechAvailable(callback: Callback) {
++    val self: Voice = this
++    val mainHandler = Handler(reactContext.mainLooper)
++    mainHandler.post {
++      try {
++        val isSpeechAvailable = SpeechRecognizer.isRecognitionAvailable(self.reactContext)
++        callback.invoke(isSpeechAvailable, false)
++      } catch (e: java.lang.Exception) {
++        callback.invoke(false, e.message)
++      }
++    }
++  }
++
++  fun getSpeechRecognitionServices(promise: Promise) {
++    val services = reactContext.packageManager
++      .queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
++    val serviceNames = Arguments.createArray()
++    for (service in services) {
++      serviceNames.pushString(service.serviceInfo.packageName)
++    }
++
++    promise.resolve(serviceNames)
++  }
++
++  private fun isPermissionGranted(): Boolean {
++    val permission = Manifest.permission.RECORD_AUDIO
++    val res: Int = reactContext.checkCallingOrSelfPermission(permission)
++    return res == PackageManager.PERMISSION_GRANTED
++  }
++
++  fun isRecognizing(callback: Callback) {
++    callback.invoke(isRecognizing)
++  }
++
++  private fun sendEvent(eventName: String, params: WritableMap) {
++    reactContext
++      .getJSModule(RCTDeviceEventEmitter::class.java)
++      .emit(eventName, params)
++  }
++
++  private fun getErrorText(errorCode: Int): String {
++    val message = when (errorCode) {
++      SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
++      SpeechRecognizer.ERROR_CLIENT -> "Client side error"
++      SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Insufficient permissions"
++      SpeechRecognizer.ERROR_NETWORK -> "Network error"
++      SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
++      SpeechRecognizer.ERROR_NO_MATCH -> "No match"
++      SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "RecognitionService busy"
++      SpeechRecognizer.ERROR_SERVER -> "error from server"
++      SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input"
++      else -> "Didn't understand, please try again."
++    }
++    return message
++  }
++
++
++  override fun onReadyForSpeech(params: Bundle?) {
++    val event = Arguments.createMap()
++    event.putBoolean("error", false)
++    sendEvent("onSpeechStart", event)
++    Log.d("ASR", "onReadyForSpeech()")
++  }
++
++  override fun onBeginningOfSpeech() {
++    val event = Arguments.createMap()
++    event.putBoolean("error", false)
++    sendEvent("onSpeechStart", event)
++    Log.d("ASR", "onBeginningOfSpeech()")
++  }
++
++  override fun onRmsChanged(rmsdB: Float) {
++    val event = Arguments.createMap()
++    event.putDouble("value", rmsdB.toDouble())
++    sendEvent("onSpeechVolumeChanged", event)
++  }
++
++  override fun onBufferReceived(buffer: ByteArray?) {
++    val event = Arguments.createMap()
++    event.putBoolean("error", false)
++    sendEvent("onSpeechRecognized", event)
++    Log.d("ASR", "onBufferReceived()")
++  }
++
++  override fun onEndOfSpeech() {
++    val event = Arguments.createMap()
++    event.putBoolean("error", false)
++    sendEvent("onSpeechEnd", event)
++    Log.d("ASR", "onEndOfSpeech()")
++    isRecognizing = false
++  }
++
++
++  override fun onError(error: Int) {
++    val errorMessage = String.format("%d/%s", error, getErrorText(error))
++    val errorData = Arguments.createMap()
++    errorData.putString("message", errorMessage)
++    errorData.putString("code", java.lang.String.valueOf(errorMessage))
++    val event = Arguments.createMap()
++    event.putMap("error", errorData)
++    sendEvent("onSpeechError", event)
++    Log.d("ASR", "onError() - $errorMessage")
++  }
++
++  override fun onResults(results: Bundle?) {
++    val arr = Arguments.createArray()
++
++    val matches = results!!.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
++    if (matches != null) {
++      for (result in matches) {
++        arr.pushString(result)
++      }
++    }
++    val event = Arguments.createMap()
++    event.putArray("value", arr)
++    sendEvent("onSpeechResults", event)
++    Log.d("ASR", "onResults()")
++  }
++
++  override fun onPartialResults(partialResults: Bundle?) {
++    val arr = Arguments.createArray()
++
++    val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
++    matches?.let {
++      for (result in it) {
++        arr.pushString(result)
++      }
++    }
++
++    val event = Arguments.createMap()
++    event.putArray("value", arr)
++    sendEvent("onSpeechPartialResults", event)
++  }
++
++  override fun onEvent(eventType: Int, params: Bundle?) {
++    TODO("Not yet implemented")
++  }
++}
+diff --git a/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java b/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java
+deleted file mode 100644
+index f22833e..0000000
+--- a/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoiceModule.java
++++ /dev/null
+@@ -1,401 +0,0 @@
+-package com.wenkesj.voice;
+-
+-import android.Manifest;
+-import android.content.ComponentName;
+-import android.content.Intent;
+-import android.content.pm.PackageManager;
+-import android.content.pm.ResolveInfo;
+-import android.os.Bundle;
+-import android.os.Handler;
+-import android.speech.RecognitionListener;
+-import android.speech.RecognitionService;
+-import android.speech.RecognizerIntent;
+-import android.speech.SpeechRecognizer;
+-import androidx.annotation.NonNull;
+-import android.util.Log;
+-
+-import com.facebook.react.bridge.Arguments;
+-import com.facebook.react.bridge.Callback;
+-import com.facebook.react.bridge.Promise;
+-import com.facebook.react.bridge.ReactApplicationContext;
+-import com.facebook.react.bridge.ReactContextBaseJavaModule;
+-import com.facebook.react.bridge.ReactMethod;
+-import com.facebook.react.bridge.ReadableMap;
+-import com.facebook.react.bridge.ReadableMapKeySetIterator;
+-import com.facebook.react.bridge.WritableArray;
+-import com.facebook.react.bridge.WritableMap;
+-import com.facebook.react.modules.core.DeviceEventManagerModule;
+-import com.facebook.react.modules.core.PermissionAwareActivity;
+-import com.facebook.react.modules.core.PermissionListener;
+-
+-import java.util.ArrayList;
+-import java.util.List;
+-import java.util.Locale;
+-
+-import javax.annotation.Nullable;
+-
+-public class VoiceModule extends ReactContextBaseJavaModule implements RecognitionListener {
+-
+-  final ReactApplicationContext reactContext;
+-  private SpeechRecognizer speech = null;
+-  private boolean isRecognizing = false;
+-  private String locale = null;
+-
+-  public VoiceModule(ReactApplicationContext reactContext) {
+-    super(reactContext);
+-    this.reactContext = reactContext;
+-  }
+-
+-  private String getLocale(String locale) {
+-    if (locale != null && !locale.equals("")) {
+-      return locale;
+-    }
+-
+-    return Locale.getDefault().toString();
+-  }
+-
+-  private void startListening(ReadableMap opts) {
+-    if (speech != null) {
+-      speech.destroy();
+-      speech = null;
+-    }
+-    
+-    if(opts.hasKey("RECOGNIZER_ENGINE")) {
+-      switch (opts.getString("RECOGNIZER_ENGINE")) {
+-        case "GOOGLE": {
+-          speech = SpeechRecognizer.createSpeechRecognizer(this.reactContext, ComponentName.unflattenFromString("com.google.android.googlequicksearchbox/com.google.android.voicesearch.serviceapi.GoogleRecognitionService"));
+-          break;
+-        }
+-        default:
+-          speech = SpeechRecognizer.createSpeechRecognizer(this.reactContext);
+-      }
+-    } else {
+-      speech = SpeechRecognizer.createSpeechRecognizer(this.reactContext);
+-    }
+-
+-    speech.setRecognitionListener(this);
+-
+-    final Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+-
+-    // Load the intent with options from JS
+-    ReadableMapKeySetIterator iterator = opts.keySetIterator();
+-    while (iterator.hasNextKey()) {
+-      String key = iterator.nextKey();
+-      switch (key) {
+-        case "EXTRA_LANGUAGE_MODEL":
+-          switch (opts.getString(key)) {
+-            case "LANGUAGE_MODEL_FREE_FORM":
+-              intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+-              break;
+-            case "LANGUAGE_MODEL_WEB_SEARCH":
+-              intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH);
+-              break;
+-            default:
+-              intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+-              break;
+-          }
+-          break;
+-        case "EXTRA_MAX_RESULTS": {
+-          Double extras = opts.getDouble(key);
+-          intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, extras.intValue());
+-          break;
+-        }
+-        case "EXTRA_PARTIAL_RESULTS": {
+-          intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, opts.getBoolean(key));
+-          break;
+-        }
+-        case "EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS": {
+-          Double extras = opts.getDouble(key);
+-          intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, extras.intValue());
+-          break;
+-        }
+-        case "EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS": {
+-          Double extras = opts.getDouble(key);
+-          intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, extras.intValue());
+-          break;
+-        }
+-        case "EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS": {
+-          Double extras = opts.getDouble(key);
+-          intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, extras.intValue());
+-          break;
+-        }
+-      }
+-    }
+-
+-    intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, getLocale(this.locale));
+-    speech.startListening(intent);
+-  }
+-
+-  private void startSpeechWithPermissions(final String locale, final ReadableMap opts, final Callback callback) {
+-    this.locale = locale;
+-
+-    Handler mainHandler = new Handler(this.reactContext.getMainLooper());
+-    mainHandler.post(new Runnable() {
+-      @Override
+-      public void run() {
+-        try {
+-          startListening(opts);
+-          isRecognizing = true;
+-          callback.invoke(false);
+-        } catch (Exception e) {
+-          callback.invoke(e.getMessage());
+-        }
+-      }
+-    });
+-  }
+-
+-  @Override
+-  public String getName() {
+-    return "RCTVoice";
+-  }
+-
+-  @ReactMethod
+-  public void startSpeech(final String locale, final ReadableMap opts, final Callback callback) {
+-    if (!isPermissionGranted() && opts.getBoolean("REQUEST_PERMISSIONS_AUTO")) {
+-      String[] PERMISSIONS = {Manifest.permission.RECORD_AUDIO};
+-      if (this.getCurrentActivity() != null) {
+-        ((PermissionAwareActivity) this.getCurrentActivity()).requestPermissions(PERMISSIONS, 1, new PermissionListener() {
+-          public boolean onRequestPermissionsResult(final int requestCode,
+-                                                    @NonNull final String[] permissions,
+-                                                    @NonNull final int[] grantResults) {
+-            boolean permissionsGranted = true;
+-            for (int i = 0; i < permissions.length; i++) {
+-              final boolean granted = grantResults[i] == PackageManager.PERMISSION_GRANTED;
+-              permissionsGranted = permissionsGranted && granted;
+-            }
+-            startSpeechWithPermissions(locale, opts, callback);
+-            return permissionsGranted;
+-          }
+-        });
+-      }
+-      return;
+-    }
+-    startSpeechWithPermissions(locale, opts, callback);
+-  }
+-
+-  @ReactMethod
+-  public void stopSpeech(final Callback callback) {
+-    Handler mainHandler = new Handler(this.reactContext.getMainLooper());
+-    mainHandler.post(new Runnable() {
+-      @Override
+-      public void run() {
+-        try {
+-          if (speech != null) {
+-            speech.stopListening();
+-          }
+-          isRecognizing = false;
+-          callback.invoke(false);
+-        } catch(Exception e) {
+-          callback.invoke(e.getMessage());
+-        }
+-      }
+-    });
+-  }
+-
+-  @ReactMethod
+-  public void cancelSpeech(final Callback callback) {
+-    Handler mainHandler = new Handler(this.reactContext.getMainLooper());
+-    mainHandler.post(new Runnable() {
+-      @Override
+-      public void run() {
+-        try {
+-          if (speech != null) {
+-            speech.cancel();
+-          }
+-          isRecognizing = false;
+-          callback.invoke(false);
+-        } catch(Exception e) {
+-          callback.invoke(e.getMessage());
+-        }
+-      }
+-    });
+-  }
+-
+-  @ReactMethod
+-  public void destroySpeech(final Callback callback) {
+-    Handler mainHandler = new Handler(this.reactContext.getMainLooper());
+-    mainHandler.post(new Runnable() {
+-      @Override
+-      public void run() {
+-        try {
+-          if (speech != null) {
+-            speech.destroy();
+-          }
+-          speech = null;
+-          isRecognizing = false;
+-          callback.invoke(false);
+-        } catch(Exception e) {
+-          callback.invoke(e.getMessage());
+-        }
+-      }
+-    });
+-  }
+-
+-  @ReactMethod
+-  public void isSpeechAvailable(final Callback callback) {
+-    final VoiceModule self = this;
+-    Handler mainHandler = new Handler(this.reactContext.getMainLooper());
+-    mainHandler.post(new Runnable() {
+-      @Override
+-      public void run() {
+-        try {
+-          Boolean isSpeechAvailable = SpeechRecognizer.isRecognitionAvailable(self.reactContext);
+-          callback.invoke(isSpeechAvailable, false);
+-        } catch(Exception e) {
+-          callback.invoke(false, e.getMessage());
+-        }
+-      }
+-    });
+-  }
+-
+-  @ReactMethod
+-  public void getSpeechRecognitionServices(Promise promise) {
+-    final List<ResolveInfo> services = this.reactContext.getPackageManager()
+-        .queryIntentServices(new Intent(RecognitionService.SERVICE_INTERFACE), 0);
+-    WritableArray serviceNames = Arguments.createArray();
+-    for (ResolveInfo service : services) {
+-      serviceNames.pushString(service.serviceInfo.packageName);
+-    }
+-
+-    promise.resolve(serviceNames);
+-  }
+-
+-  private boolean isPermissionGranted() {
+-    String permission = Manifest.permission.RECORD_AUDIO;
+-    int res = getReactApplicationContext().checkCallingOrSelfPermission(permission);
+-    return res == PackageManager.PERMISSION_GRANTED;
+-  }
+-
+-  @ReactMethod
+-  public void isRecognizing(Callback callback) {
+-    callback.invoke(isRecognizing);
+-  }
+-
+-  private void sendEvent(String eventName, @Nullable WritableMap params) {
+-    this.reactContext
+-      .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+-      .emit(eventName, params);
+-  }
+-
+-  @Override
+-  public void onBeginningOfSpeech() {
+-    WritableMap event = Arguments.createMap();
+-    event.putBoolean("error", false);
+-    sendEvent("onSpeechStart", event);
+-    Log.d("ASR", "onBeginningOfSpeech()");
+-  }
+-
+-  @Override
+-  public void onBufferReceived(byte[] buffer) {
+-    WritableMap event = Arguments.createMap();
+-    event.putBoolean("error", false);
+-    sendEvent("onSpeechRecognized", event);
+-    Log.d("ASR", "onBufferReceived()");
+-  }
+-
+-  @Override
+-  public void onEndOfSpeech() {
+-    WritableMap event = Arguments.createMap();
+-    event.putBoolean("error", false);
+-    sendEvent("onSpeechEnd", event);
+-    Log.d("ASR", "onEndOfSpeech()");
+-    isRecognizing = false;
+-  }
+-
+-  @Override
+-  public void onError(int errorCode) {
+-    String errorMessage = String.format("%d/%s", errorCode, getErrorText(errorCode));
+-    WritableMap error = Arguments.createMap();
+-    error.putString("message", errorMessage);
+-    error.putString("code", String.valueOf(errorCode));
+-    WritableMap event = Arguments.createMap();
+-    event.putMap("error", error);
+-    sendEvent("onSpeechError", event);
+-    Log.d("ASR", "onError() - " + errorMessage);
+-  }
+-
+-  @Override
+-  public void onEvent(int arg0, Bundle arg1) { }
+-
+-  @Override
+-  public void onPartialResults(Bundle results) {
+-    WritableArray arr = Arguments.createArray();
+-
+-    ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+-    for (String result : matches) {
+-      arr.pushString(result);
+-    }
+-
+-    WritableMap event = Arguments.createMap();
+-    event.putArray("value", arr);
+-    sendEvent("onSpeechPartialResults", event);
+-    Log.d("ASR", "onPartialResults()");
+-  }
+-
+-  @Override
+-  public void onReadyForSpeech(Bundle arg0) {
+-    WritableMap event = Arguments.createMap();
+-    event.putBoolean("error", false);
+-    sendEvent("onSpeechStart", event);
+-    Log.d("ASR", "onReadyForSpeech()");
+-  }
+-
+-  @Override
+-  public void onResults(Bundle results) {
+-    WritableArray arr = Arguments.createArray();
+-
+-    ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+-    for (String result : matches) {
+-      arr.pushString(result);
+-    }
+-
+-    WritableMap event = Arguments.createMap();
+-    event.putArray("value", arr);
+-    sendEvent("onSpeechResults", event);
+-    Log.d("ASR", "onResults()");
+-  }
+-
+-  @Override
+-  public void onRmsChanged(float rmsdB) {
+-    WritableMap event = Arguments.createMap();
+-    event.putDouble("value", (double) rmsdB);
+-    sendEvent("onSpeechVolumeChanged", event);
+-  }
+-
+-  public static String getErrorText(int errorCode) {
+-    String message;
+-    switch (errorCode) {
+-      case SpeechRecognizer.ERROR_AUDIO:
+-        message = "Audio recording error";
+-        break;
+-      case SpeechRecognizer.ERROR_CLIENT:
+-        message = "Client side error";
+-        break;
+-      case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+-        message = "Insufficient permissions";
+-        break;
+-      case SpeechRecognizer.ERROR_NETWORK:
+-        message = "Network error";
+-        break;
+-      case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
+-        message = "Network timeout";
+-        break;
+-      case SpeechRecognizer.ERROR_NO_MATCH:
+-        message = "No match";
+-        break;
+-      case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+-        message = "RecognitionService busy";
+-        break;
+-      case SpeechRecognizer.ERROR_SERVER:
+-        message = "error from server";
+-        break;
+-      case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+-        message = "No speech input";
+-        break;
+-      default:
+-        message = "Didn't understand, please try again.";
+-        break;
+-    }
+-    return message;
+-  }
+-}
+diff --git a/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoiceModule.kt b/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoiceModule.kt
+new file mode 100644
+index 0000000..65da565
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoiceModule.kt
+@@ -0,0 +1,63 @@
++package com.wenkesj.voice
++
++import com.facebook.react.bridge.Callback
++import com.facebook.react.bridge.ReactApplicationContext
++import com.facebook.react.bridge.Promise
++import com.facebook.react.bridge.ReadableMap
++import com.facebook.react.bridge.ReactMethod;
++
++class VoiceModule internal constructor(context: ReactApplicationContext) :
++  VoiceSpec(context) {
++  private val voice = Voice(context)
++
++  @ReactMethod
++  override fun destroySpeech(callback: Callback) {
++    voice.destroySpeech(callback)
++  }
++
++  @ReactMethod
++  override fun startSpeech(locale: String, opts: ReadableMap, callback: Callback) {
++    voice.startSpeech(locale,opts,callback)
++  }
++
++  @ReactMethod
++  override fun stopSpeech(callback: Callback) {
++    voice.stopSpeech(callback)
++  }
++
++  @ReactMethod
++  override fun cancelSpeech(callback: Callback) {
++    voice.cancelSpeech(callback)
++  }
++
++  @ReactMethod
++  override fun isSpeechAvailable(callback: Callback) {
++    voice.isSpeechAvailable(callback)
++  }
++
++  @ReactMethod
++  override fun getSpeechRecognitionServices(promise: Promise) {
++    voice.getSpeechRecognitionServices(promise)
++  }
++
++  @ReactMethod
++  override fun isRecognizing(callback: Callback) {
++    voice.isRecognizing(callback)
++  }
++
++  override fun addListener(eventType: String) {
++
++  }
++
++  override fun removeListeners(count: Double) {
++
++  }
++
++  override fun getName(): String {
++    return NAME
++  }
++
++  companion object {
++    const val NAME = "Voice"
++  }
++}
+diff --git a/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoicePackage.java b/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoicePackage.java
+deleted file mode 100644
+index 428a000..0000000
+--- a/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoicePackage.java
++++ /dev/null
+@@ -1,30 +0,0 @@
+-package com.wenkesj.voice;
+-
+-import com.facebook.react.ReactPackage;
+-import com.facebook.react.bridge.JavaScriptModule;
+-import com.facebook.react.bridge.NativeModule;
+-import com.facebook.react.bridge.ReactApplicationContext;
+-import com.facebook.react.uimanager.ViewManager;
+-
+-import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.List;
+-
+-public class VoicePackage implements ReactPackage {
+-
+-  @Override
+-  public List<NativeModule> createNativeModules(ReactApplicationContext reactApplicationContext) {
+-    List<NativeModule> modules = new ArrayList<>();
+-    modules.add(new VoiceModule(reactApplicationContext));
+-    return modules;
+-  }
+-
+-  public List<Class<? extends JavaScriptModule>> createJSModules() {
+-    return Collections.emptyList();
+-  }
+-
+-  @Override
+-  public List<ViewManager> createViewManagers(ReactApplicationContext reactApplicationContext) {
+-    return Collections.emptyList();
+-  }
+-}
+diff --git a/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoicePackage.kt b/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoicePackage.kt
+new file mode 100644
+index 0000000..3ddf65d
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/android/src/main/java/com/wenkesj/voice/VoicePackage.kt
+@@ -0,0 +1,35 @@
++package com.wenkesj.voice
++
++import com.facebook.react.TurboReactPackage
++import com.facebook.react.bridge.ReactApplicationContext
++import com.facebook.react.bridge.NativeModule
++import com.facebook.react.module.model.ReactModuleInfoProvider
++import com.facebook.react.module.model.ReactModuleInfo
++import java.util.HashMap
++
++class VoicePackage : TurboReactPackage() {
++  override fun getModule(name: String, reactContext: ReactApplicationContext): NativeModule? {
++    return if (name == VoiceModule.NAME) {
++      VoiceModule(reactContext)
++    } else {
++      null
++    }
++  }
++
++  override fun getReactModuleInfoProvider(): ReactModuleInfoProvider {
++    return ReactModuleInfoProvider {
++      val moduleInfos: MutableMap<String, ReactModuleInfo> = HashMap()
++      val isTurboModule: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
++      moduleInfos[VoiceModule.NAME] = ReactModuleInfo(
++        VoiceModule.NAME,
++        VoiceModule.NAME,
++        false,  // canOverrideExistingModule
++        false,  // needsEagerInit
++        true,  // hasConstants
++        false,  // isCxxModule
++        isTurboModule // isTurboModule
++      )
++      moduleInfos
++    }
++  }
++}
+diff --git a/node_modules/@react-native-voice/voice/android/src/newarch/VoiceSpec.kt b/node_modules/@react-native-voice/voice/android/src/newarch/VoiceSpec.kt
+new file mode 100644
+index 0000000..3f0c1ce
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/android/src/newarch/VoiceSpec.kt
+@@ -0,0 +1,55 @@
++package com.wenkesj.voice
++
++import com.facebook.react.bridge.Callback
++import com.facebook.react.bridge.Promise
++import com.facebook.react.bridge.ReactApplicationContext
++import com.facebook.react.bridge.ReadableMap
++
++abstract class VoiceSpec internal constructor(context: ReactApplicationContext) :
++  NativeVoiceAndroidSpec(context) {
++  private val voice = Voice(context)
++
++  override fun destroySpeech(callback: Callback) {
++    voice.destroySpeech(callback)
++  }
++
++  override fun startSpeech(locale: String, opts: ReadableMap, callback: Callback) {
++    voice.startSpeech(locale,opts,callback)
++  }
++
++  override fun stopSpeech(callback: Callback) {
++    voice.stopSpeech(callback)
++  }
++
++  override fun cancelSpeech(callback: Callback) {
++    voice.cancelSpeech(callback)
++  }
++
++  override fun isSpeechAvailable(callback: Callback) {
++    voice.isSpeechAvailable(callback)
++  }
++
++  override fun getSpeechRecognitionServices(promise: Promise) {
++    voice.getSpeechRecognitionServices(promise)
++  }
++
++  override fun isRecognizing(callback: Callback) {
++    voice.isRecognizing(callback)
++  }
++
++  override fun addListener(eventType: String) {
++
++  }
++
++  override fun removeListeners(count: Double) {
++
++  }
++
++    override fun getName(): String {
++    return NAME
++  }
++
++  companion object {
++    const val NAME = "Voice"
++  }
++}
+diff --git a/node_modules/@react-native-voice/voice/android/src/oldarch/VoiceSpec.kt b/node_modules/@react-native-voice/voice/android/src/oldarch/VoiceSpec.kt
+new file mode 100644
+index 0000000..f8c869e
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/android/src/oldarch/VoiceSpec.kt
+@@ -0,0 +1,30 @@
++package com.wenkesj.voice
++
++import com.facebook.react.bridge.Callback
++import com.facebook.react.bridge.Promise
++import com.facebook.react.bridge.ReactApplicationContext
++import com.facebook.react.bridge.ReactContextBaseJavaModule
++import com.facebook.react.bridge.ReadableMap
++
++
++abstract class VoiceSpec internal constructor(context: ReactApplicationContext) :
++  ReactContextBaseJavaModule(context) {
++
++  abstract fun destroySpeech(callback:Callback)
++
++  abstract fun startSpeech(locale:String, opts:ReadableMap, callback:Callback)
++
++  abstract fun stopSpeech(callback:Callback)
++
++  abstract fun cancelSpeech(callback:Callback)
++
++  abstract fun isSpeechAvailable(callback:Callback)
++
++  abstract fun getSpeechRecognitionServices(promise: Promise)
++
++  abstract fun isRecognizing(callback:Callback)
++
++  abstract fun addListener(eventType:String)
++
++  abstract fun removeListeners(count:Double)
++}
+diff --git a/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.d.ts b/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.d.ts
+new file mode 100644
+index 0000000..be13343
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.d.ts
+@@ -0,0 +1,22 @@
++import type { TurboModule } from 'react-native';
++type SpeechType = {
++    EXTRA_LANGUAGE_MODEL: string;
++    EXTRA_MAX_RESULTS: string;
++    EXTRA_PARTIAL_RESULTS: string;
++    REQUEST_PERMISSIONS_AUTO: string;
++    RECOGNIZER_ENGINE: string;
++};
++export interface Spec extends TurboModule {
++    destroySpeech: (callback: (error: string) => void) => void;
++    startSpeech: (locale: string, opts: SpeechType, callback: (error: string) => void) => void;
++    stopSpeech: (callback: (error: string) => void) => void;
++    cancelSpeech: (callback: (error: string) => void) => void;
++    isSpeechAvailable: (callback: (isAvailable: boolean, error: string) => void) => void;
++    getSpeechRecognitionServices(): Promise<string[]>;
++    isRecognizing: (callback: (Recognizing: boolean) => void) => void;
++    addListener: (eventType: string) => void;
++    removeListeners: (count: number) => void;
++}
++declare const _default: Spec;
++export default _default;
++//# sourceMappingURL=NativeVoiceAndroid.d.ts.map
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.d.ts.map b/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.d.ts.map
+new file mode 100644
+index 0000000..4241d89
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.d.ts.map
+@@ -0,0 +1 @@
++{"version":3,"file":"NativeVoiceAndroid.d.ts","sourceRoot":"","sources":["../src/NativeVoiceAndroid.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,WAAW,EAAE,MAAM,cAAc,CAAC;AAEhD,KAAK,UAAU,GAAG;IAChB,oBAAoB,EAAE,MAAM,CAAC;IAC7B,iBAAiB,EAAE,MAAM,CAAC;IAC1B,qBAAqB,EAAE,MAAM,CAAC;IAC9B,wBAAwB,EAAE,MAAM,CAAC;IACjC,iBAAiB,EAAE,MAAM,CAAC;CAC3B,CAAC;AACF,MAAM,WAAW,IAAK,SAAQ,WAAW;IACvC,aAAa,EAAE,CAAC,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAAK,IAAI,CAAC;IAC3D,WAAW,EAAE,CACX,MAAM,EAAE,MAAM,EACd,IAAI,EAAE,UAAU,EAChB,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAC9B,IAAI,CAAC;IACV,UAAU,EAAE,CAAC,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAAK,IAAI,CAAC;IACxD,YAAY,EAAE,CAAC,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAAK,IAAI,CAAC;IAC1D,iBAAiB,EAAE,CACjB,QAAQ,EAAE,CAAC,WAAW,EAAE,OAAO,EAAE,KAAK,EAAE,MAAM,KAAK,IAAI,KACpD,IAAI,CAAC;IACV,4BAA4B,IAAI,OAAO,CAAC,MAAM,EAAE,CAAC,CAAC;IAClD,aAAa,EAAE,CAAC,QAAQ,EAAE,CAAC,WAAW,EAAE,OAAO,KAAK,IAAI,KAAK,IAAI,CAAC;IAClE,WAAW,EAAE,CAAC,SAAS,EAAE,MAAM,KAAK,IAAI,CAAC;IACzC,eAAe,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,CAAC;CAC1C;;AAED,wBAA+D"}
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.js b/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.js
+new file mode 100644
+index 0000000..5354ad1
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.js
+@@ -0,0 +1,3 @@
++import { TurboModuleRegistry } from 'react-native';
++export default TurboModuleRegistry.getEnforcing('Voice');
++//# sourceMappingURL=NativeVoiceAndroid.js.map
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.js.map b/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.js.map
+new file mode 100644
+index 0000000..a563113
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/dist/NativeVoiceAndroid.js.map
+@@ -0,0 +1 @@
++{"version":3,"file":"NativeVoiceAndroid.js","sourceRoot":"","sources":["../src/NativeVoiceAndroid.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,mBAAmB,EAAE,MAAM,cAAc,CAAC;AA0BnD,eAAe,mBAAmB,CAAC,YAAY,CAAO,OAAO,CAAC,CAAC","sourcesContent":["import type { TurboModule } from 'react-native';\nimport { TurboModuleRegistry } from 'react-native';\ntype SpeechType = {\n  EXTRA_LANGUAGE_MODEL: string;\n  EXTRA_MAX_RESULTS: string;\n  EXTRA_PARTIAL_RESULTS: string;\n  REQUEST_PERMISSIONS_AUTO: string;\n  RECOGNIZER_ENGINE: string;\n};\nexport interface Spec extends TurboModule {\n  destroySpeech: (callback: (error: string) => void) => void;\n  startSpeech: (\n    locale: string,\n    opts: SpeechType,\n    callback: (error: string) => void\n  ) => void;\n  stopSpeech: (callback: (error: string) => void) => void;\n  cancelSpeech: (callback: (error: string) => void) => void;\n  isSpeechAvailable: (\n    callback: (isAvailable: boolean, error: string) => void\n  ) => void;\n  getSpeechRecognitionServices(): Promise<string[]>;\n  isRecognizing: (callback: (Recognizing: boolean) => void) => void;\n  addListener: (eventType: string) => void;\n  removeListeners: (count: number) => void;\n}\n\nexport default TurboModuleRegistry.getEnforcing<Spec>('Voice');\n"]}
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.d.ts b/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.d.ts
+new file mode 100644
+index 0000000..40287dc
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.d.ts
+@@ -0,0 +1,18 @@
++import type { TurboModule } from 'react-native';
++export interface Spec extends TurboModule {
++    destroySpeech: (callback: (error: string) => void) => void;
++    startSpeech: (locale: string, callback: (error: string) => void) => void;
++    startTranscription: (locale: string, callback: (error: string) => void) => void;
++    stopSpeech: (callback: (error: string) => void) => void;
++    stopTranscription: (callback: (error: string) => void) => void;
++    cancelSpeech: (callback: (error: string) => void) => void;
++    cancelTranscription: (callback: (error: string) => void) => void;
++    isSpeechAvailable: (callback: (isAvailable: boolean, error: string) => void) => void;
++    isRecognizing: (callback: (Recognizing: boolean) => void) => void;
++    addListener: (eventType: string) => void;
++    removeListeners: (count: number) => void;
++    destroyTranscription: (callback: (error: string) => void) => void;
++}
++declare const _default: Spec;
++export default _default;
++//# sourceMappingURL=NativeVoiceIOS.d.ts.map
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.d.ts.map b/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.d.ts.map
+new file mode 100644
+index 0000000..80c01ce
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.d.ts.map
+@@ -0,0 +1 @@
++{"version":3,"file":"NativeVoiceIOS.d.ts","sourceRoot":"","sources":["../src/NativeVoiceIOS.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,WAAW,EAAE,MAAM,cAAc,CAAC;AAGhD,MAAM,WAAW,IAAK,SAAQ,WAAW;IACvC,aAAa,EAAE,CAAC,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAAK,IAAI,CAAC;IAC3D,WAAW,EAAE,CAAC,MAAM,EAAE,MAAM,EAAE,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAAK,IAAI,CAAC;IACzE,kBAAkB,EAAE,CAClB,MAAM,EAAE,MAAM,EACd,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAC9B,IAAI,CAAC;IACV,UAAU,EAAE,CAAC,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAAK,IAAI,CAAC;IACxD,iBAAiB,EAAE,CAAC,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAAK,IAAI,CAAC;IAC/D,YAAY,EAAE,CAAC,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAAK,IAAI,CAAC;IAC1D,mBAAmB,EAAE,CAAC,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAAK,IAAI,CAAC;IACjE,iBAAiB,EAAE,CACjB,QAAQ,EAAE,CAAC,WAAW,EAAE,OAAO,EAAE,KAAK,EAAE,MAAM,KAAK,IAAI,KACpD,IAAI,CAAC;IACV,aAAa,EAAE,CAAC,QAAQ,EAAE,CAAC,WAAW,EAAE,OAAO,KAAK,IAAI,KAAK,IAAI,CAAC;IAClE,WAAW,EAAE,CAAC,SAAS,EAAE,MAAM,KAAK,IAAI,CAAC;IACzC,eAAe,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,CAAC;IACzC,oBAAoB,EAAE,CAAC,QAAQ,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,KAAK,IAAI,CAAC;CACnE;;AAED,wBAA+D"}
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.js b/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.js
+new file mode 100644
+index 0000000..d866cee
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.js
+@@ -0,0 +1,3 @@
++import { TurboModuleRegistry } from 'react-native';
++export default TurboModuleRegistry.getEnforcing('Voice');
++//# sourceMappingURL=NativeVoiceIOS.js.map
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.js.map b/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.js.map
+new file mode 100644
+index 0000000..efe754d
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/dist/NativeVoiceIOS.js.map
+@@ -0,0 +1 @@
++{"version":3,"file":"NativeVoiceIOS.js","sourceRoot":"","sources":["../src/NativeVoiceIOS.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,mBAAmB,EAAE,MAAM,cAAc,CAAC;AAsBnD,eAAe,mBAAmB,CAAC,YAAY,CAAO,OAAO,CAAC,CAAC","sourcesContent":["import type { TurboModule } from 'react-native';\nimport { TurboModuleRegistry } from 'react-native';\n\nexport interface Spec extends TurboModule {\n  destroySpeech: (callback: (error: string) => void) => void;\n  startSpeech: (locale: string, callback: (error: string) => void) => void;\n  startTranscription: (\n    locale: string,\n    callback: (error: string) => void,\n  ) => void;\n  stopSpeech: (callback: (error: string) => void) => void;\n  stopTranscription: (callback: (error: string) => void) => void;\n  cancelSpeech: (callback: (error: string) => void) => void;\n  cancelTranscription: (callback: (error: string) => void) => void;\n  isSpeechAvailable: (\n    callback: (isAvailable: boolean, error: string) => void,\n  ) => void;\n  isRecognizing: (callback: (Recognizing: boolean) => void) => void;\n  addListener: (eventType: string) => void;\n  removeListeners: (count: number) => void;\n  destroyTranscription: (callback: (error: string) => void) => void;\n}\n\nexport default TurboModuleRegistry.getEnforcing<Spec>('Voice');\n"]}
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.d.ts b/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.d.ts
+index 14cdcc2..f2f5c96 100644
+--- a/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.d.ts
++++ b/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.d.ts
+@@ -1,19 +1,4 @@
+-import { EventSubscriptionVendor } from 'react-native';
+-declare type Callback = (error: string) => void;
+-export declare type VoiceModule = {
+-    /**
+-     * Gets list of SpeechRecognitionServices used.
+-     * @platform android
+-     */
+-    getSpeechRecognitionServices: () => Promise<string[]> | void;
+-    destroySpeech: (callback: Callback) => void;
+-    startSpeech: Function;
+-    stopSpeech: (callback: Callback) => void;
+-    cancelSpeech: (callback: Callback) => void;
+-    isRecognizing: Function;
+-    isSpeechAvailable: Function;
+-} & SpeechEvents & EventSubscriptionVendor;
+-export declare type SpeechEvents = {
++export type SpeechEvents = {
+     onSpeechStart?: (e: SpeechStartEvent) => void;
+     onSpeechRecognized?: (e: SpeechRecognizedEvent) => void;
+     onSpeechEnd?: (e: SpeechEndEvent) => void;
+@@ -22,26 +7,48 @@ export declare type SpeechEvents = {
+     onSpeechPartialResults?: (e: SpeechResultsEvent) => void;
+     onSpeechVolumeChanged?: (e: SpeechVolumeChangeEvent) => void;
+ };
+-export declare type SpeechStartEvent = {
++export type TranscriptionEvents = {
++    onTranscriptionStart?: (e: TranscriptionStartEvent) => void;
++    onTranscriptionEnd?: (e: TranscriptionEndEvent) => void;
++    onTranscriptionError?: (e: TranscriptionErrorEvent) => void;
++    onTranscriptionResults?: (e: TranscriptionResultsEvent) => void;
++};
++export type SpeechStartEvent = {
++    error?: boolean;
++};
++export type TranscriptionStartEvent = {
+     error?: boolean;
+ };
+-export declare type SpeechRecognizedEvent = {
++export type SpeechRecognizedEvent = {
+     isFinal?: boolean;
+ };
+-export declare type SpeechResultsEvent = {
++export type SpeechResultsEvent = {
+     value?: string[];
+ };
+-export declare type SpeechErrorEvent = {
++export type TranscriptionResultsEvent = {
++    segments?: string[];
++    transcription?: string;
++    isFinal?: boolean;
++};
++export type SpeechErrorEvent = {
++    error?: {
++        code?: string;
++        message?: string;
++    };
++};
++export type TranscriptionErrorEvent = {
+     error?: {
+         code?: string;
+         message?: string;
+     };
+ };
+-export declare type SpeechEndEvent = {
++export type SpeechEndEvent = {
++    error?: boolean;
++};
++export type TranscriptionEndEvent = {
+     error?: boolean;
+ };
+-export declare type SpeechVolumeChangeEvent = {
++export type SpeechVolumeChangeEvent = {
+     value?: number;
+ };
+-export {};
+ //# sourceMappingURL=VoiceModuleTypes.d.ts.map
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.d.ts.map b/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.d.ts.map
+index 1476ee4..d982c6f 100644
+--- a/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.d.ts.map
++++ b/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"VoiceModuleTypes.d.ts","sourceRoot":"","sources":["../src/VoiceModuleTypes.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,uBAAuB,EAAE,MAAM,cAAc,CAAC;AAEvD,aAAK,QAAQ,GAAG,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,CAAC;AAExC,oBAAY,WAAW,GAAG;IACxB;;;OAGG;IACH,4BAA4B,EAAE,MAAM,OAAO,CAAC,MAAM,EAAE,CAAC,GAAG,IAAI,CAAC;IAC7D,aAAa,EAAE,CAAC,QAAQ,EAAE,QAAQ,KAAK,IAAI,CAAC;IAC5C,WAAW,EAAE,QAAQ,CAAC;IACtB,UAAU,EAAE,CAAC,QAAQ,EAAE,QAAQ,KAAK,IAAI,CAAC;IACzC,YAAY,EAAE,CAAC,QAAQ,EAAE,QAAQ,KAAK,IAAI,CAAC;IAC3C,aAAa,EAAE,QAAQ,CAAC;IACxB,iBAAiB,EAAE,QAAQ,CAAC;CAC7B,GAAG,YAAY,GACd,uBAAuB,CAAC;AAE1B,oBAAY,YAAY,GAAG;IACzB,aAAa,CAAC,EAAE,CAAC,CAAC,EAAE,gBAAgB,KAAK,IAAI,CAAC;IAC9C,kBAAkB,CAAC,EAAE,CAAC,CAAC,EAAE,qBAAqB,KAAK,IAAI,CAAC;IACxD,WAAW,CAAC,EAAE,CAAC,CAAC,EAAE,cAAc,KAAK,IAAI,CAAC;IAC1C,aAAa,CAAC,EAAE,CAAC,CAAC,EAAE,gBAAgB,KAAK,IAAI,CAAC;IAC9C,eAAe,CAAC,EAAE,CAAC,CAAC,EAAE,kBAAkB,KAAK,IAAI,CAAC;IAClD,sBAAsB,CAAC,EAAE,CAAC,CAAC,EAAE,kBAAkB,KAAK,IAAI,CAAC;IACzD,qBAAqB,CAAC,EAAE,CAAC,CAAC,EAAE,uBAAuB,KAAK,IAAI,CAAC;CAC9D,CAAC;AAEF,oBAAY,gBAAgB,GAAG;IAC7B,KAAK,CAAC,EAAE,OAAO,CAAC;CACjB,CAAC;AAEF,oBAAY,qBAAqB,GAAG;IAClC,OAAO,CAAC,EAAE,OAAO,CAAC;CACnB,CAAC;AAEF,oBAAY,kBAAkB,GAAG;IAC/B,KAAK,CAAC,EAAE,MAAM,EAAE,CAAC;CAClB,CAAC;AAEF,oBAAY,gBAAgB,GAAG;IAC7B,KAAK,CAAC,EAAE;QACN,IAAI,CAAC,EAAE,MAAM,CAAC;QACd,OAAO,CAAC,EAAE,MAAM,CAAC;KAClB,CAAC;CACH,CAAC;AAEF,oBAAY,cAAc,GAAG;IAC3B,KAAK,CAAC,EAAE,OAAO,CAAC;CACjB,CAAC;AAEF,oBAAY,uBAAuB,GAAG;IACpC,KAAK,CAAC,EAAE,MAAM,CAAC;CAChB,CAAC"}
+\ No newline at end of file
++{"version":3,"file":"VoiceModuleTypes.d.ts","sourceRoot":"","sources":["../src/VoiceModuleTypes.ts"],"names":[],"mappings":"AAAA,MAAM,MAAM,YAAY,GAAG;IACzB,aAAa,CAAC,EAAE,CAAC,CAAC,EAAE,gBAAgB,KAAK,IAAI,CAAC;IAC9C,kBAAkB,CAAC,EAAE,CAAC,CAAC,EAAE,qBAAqB,KAAK,IAAI,CAAC;IACxD,WAAW,CAAC,EAAE,CAAC,CAAC,EAAE,cAAc,KAAK,IAAI,CAAC;IAC1C,aAAa,CAAC,EAAE,CAAC,CAAC,EAAE,gBAAgB,KAAK,IAAI,CAAC;IAC9C,eAAe,CAAC,EAAE,CAAC,CAAC,EAAE,kBAAkB,KAAK,IAAI,CAAC;IAClD,sBAAsB,CAAC,EAAE,CAAC,CAAC,EAAE,kBAAkB,KAAK,IAAI,CAAC;IACzD,qBAAqB,CAAC,EAAE,CAAC,CAAC,EAAE,uBAAuB,KAAK,IAAI,CAAC;CAC9D,CAAC;AAEF,MAAM,MAAM,mBAAmB,GAAG;IAChC,oBAAoB,CAAC,EAAE,CAAC,CAAC,EAAE,uBAAuB,KAAK,IAAI,CAAC;IAC5D,kBAAkB,CAAC,EAAE,CAAC,CAAC,EAAE,qBAAqB,KAAK,IAAI,CAAC;IACxD,oBAAoB,CAAC,EAAE,CAAC,CAAC,EAAE,uBAAuB,KAAK,IAAI,CAAC;IAC5D,sBAAsB,CAAC,EAAE,CAAC,CAAC,EAAE,yBAAyB,KAAK,IAAI,CAAC;CACjE,CAAC;AAEF,MAAM,MAAM,gBAAgB,GAAG;IAC7B,KAAK,CAAC,EAAE,OAAO,CAAC;CACjB,CAAC;AAEF,MAAM,MAAM,uBAAuB,GAAG;IACpC,KAAK,CAAC,EAAE,OAAO,CAAC;CACjB,CAAC;AAEF,MAAM,MAAM,qBAAqB,GAAG;IAClC,OAAO,CAAC,EAAE,OAAO,CAAC;CACnB,CAAC;AAEF,MAAM,MAAM,kBAAkB,GAAG;IAC/B,KAAK,CAAC,EAAE,MAAM,EAAE,CAAC;CAClB,CAAC;AAEF,MAAM,MAAM,yBAAyB,GAAG;IACtC,QAAQ,CAAC,EAAE,MAAM,EAAE,CAAC;IACpB,aAAa,CAAC,EAAE,MAAM,CAAC;IACvB,OAAO,CAAC,EAAE,OAAO,CAAC;CACnB,CAAC;AAEF,MAAM,MAAM,gBAAgB,GAAG;IAC7B,KAAK,CAAC,EAAE;QACN,IAAI,CAAC,EAAE,MAAM,CAAC;QACd,OAAO,CAAC,EAAE,MAAM,CAAC;KAClB,CAAC;CACH,CAAC;AAEF,MAAM,MAAM,uBAAuB,GAAG;IACpC,KAAK,CAAC,EAAE;QACN,IAAI,CAAC,EAAE,MAAM,CAAC;QACd,OAAO,CAAC,EAAE,MAAM,CAAC;KAClB,CAAC;CACH,CAAC;AAEF,MAAM,MAAM,cAAc,GAAG;IAC3B,KAAK,CAAC,EAAE,OAAO,CAAC;CACjB,CAAC;AAEF,MAAM,MAAM,qBAAqB,GAAG;IAClC,KAAK,CAAC,EAAE,OAAO,CAAC;CACjB,CAAC;AAEF,MAAM,MAAM,uBAAuB,GAAG;IACpC,KAAK,CAAC,EAAE,MAAM,CAAC;CAChB,CAAC"}
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.js b/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.js
+index c8ad2e5..eec83b7 100644
+--- a/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.js
++++ b/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.js
+@@ -1,2 +1,2 @@
+-"use strict";
+-Object.defineProperty(exports, "__esModule", { value: true });
++export {};
++//# sourceMappingURL=VoiceModuleTypes.js.map
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.js.map b/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.js.map
+new file mode 100644
+index 0000000..a618901
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/dist/VoiceModuleTypes.js.map
+@@ -0,0 +1 @@
++{"version":3,"file":"VoiceModuleTypes.js","sourceRoot":"","sources":["../src/VoiceModuleTypes.ts"],"names":[],"mappings":"","sourcesContent":["export type SpeechEvents = {\n  onSpeechStart?: (e: SpeechStartEvent) => void;\n  onSpeechRecognized?: (e: SpeechRecognizedEvent) => void;\n  onSpeechEnd?: (e: SpeechEndEvent) => void;\n  onSpeechError?: (e: SpeechErrorEvent) => void;\n  onSpeechResults?: (e: SpeechResultsEvent) => void;\n  onSpeechPartialResults?: (e: SpeechResultsEvent) => void;\n  onSpeechVolumeChanged?: (e: SpeechVolumeChangeEvent) => void;\n};\n\nexport type TranscriptionEvents = {\n  onTranscriptionStart?: (e: TranscriptionStartEvent) => void;\n  onTranscriptionEnd?: (e: TranscriptionEndEvent) => void;\n  onTranscriptionError?: (e: TranscriptionErrorEvent) => void;\n  onTranscriptionResults?: (e: TranscriptionResultsEvent) => void;\n};\n\nexport type SpeechStartEvent = {\n  error?: boolean;\n};\n\nexport type TranscriptionStartEvent = {\n  error?: boolean;\n};\n\nexport type SpeechRecognizedEvent = {\n  isFinal?: boolean;\n};\n\nexport type SpeechResultsEvent = {\n  value?: string[];\n};\n\nexport type TranscriptionResultsEvent = {\n  segments?: string[];\n  transcription?: string;\n  isFinal?: boolean;\n};\n\nexport type SpeechErrorEvent = {\n  error?: {\n    code?: string;\n    message?: string;\n  };\n};\n\nexport type TranscriptionErrorEvent = {\n  error?: {\n    code?: string;\n    message?: string;\n  };\n};\n\nexport type SpeechEndEvent = {\n  error?: boolean;\n};\n\nexport type TranscriptionEndEvent = {\n  error?: boolean;\n};\n\nexport type SpeechVolumeChangeEvent = {\n  value?: number;\n};\n"]}
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/index.d.ts b/node_modules/@react-native-voice/voice/dist/index.d.ts
+index 727a1d9..4c41a2b 100644
+--- a/node_modules/@react-native-voice/voice/dist/index.d.ts
++++ b/node_modules/@react-native-voice/voice/dist/index.d.ts
+@@ -1,29 +1,37 @@
+-import { SpeechEvents, SpeechRecognizedEvent, SpeechErrorEvent, SpeechResultsEvent, SpeechStartEvent, SpeechEndEvent, SpeechVolumeChangeEvent } from './VoiceModuleTypes';
++import { type SpeechEvents, type TranscriptionEvents, type TranscriptionEndEvent, type TranscriptionErrorEvent, type TranscriptionStartEvent, type SpeechRecognizedEvent, type SpeechErrorEvent, type SpeechResultsEvent, type SpeechStartEvent, type SpeechEndEvent, type SpeechVolumeChangeEvent, type TranscriptionResultsEvent } from './VoiceModuleTypes';
+ declare class RCTVoice {
+-    _loaded: boolean;
+-    _listeners: any[] | null;
+-    _events: Required<SpeechEvents>;
++    private _loaded;
++    private _listeners;
++    private _events;
+     constructor();
+     removeAllListeners(): void;
+-    destroy(): Promise<unknown>;
+-    start(locale: any, options?: {}): Promise<unknown>;
+-    stop(): Promise<unknown>;
+-    cancel(): Promise<unknown>;
++    destroy(): Promise<void>;
++    destroyTranscription(): Promise<void>;
++    start(locale: string, options?: {}): Promise<void>;
++    startTranscription(url: string, locale: string, options?: {}): Promise<void>;
++    stop(): Promise<void>;
++    stopTranscription(): Promise<void>;
++    cancel(): Promise<void>;
++    cancelTranscription(): Promise<void>;
+     isAvailable(): Promise<0 | 1>;
+     /**
+      * (Android) Get a list of the speech recognition engines available on the device
+      * */
+-    getSpeechRecognitionServices(): void | Promise<string[]>;
++    getSpeechRecognitionServices(): any;
+     isRecognizing(): Promise<0 | 1>;
+     set onSpeechStart(fn: (e: SpeechStartEvent) => void);
++    set onTranscriptionStart(fn: (e: TranscriptionStartEvent) => void);
+     set onSpeechRecognized(fn: (e: SpeechRecognizedEvent) => void);
+     set onSpeechEnd(fn: (e: SpeechEndEvent) => void);
++    set onTranscriptionEnd(fn: (e: SpeechEndEvent) => void);
+     set onSpeechError(fn: (e: SpeechErrorEvent) => void);
++    set onTranscriptionError(fn: (e: TranscriptionErrorEvent) => void);
+     set onSpeechResults(fn: (e: SpeechResultsEvent) => void);
++    set onTranscriptionResults(fn: (e: TranscriptionResultsEvent) => void);
+     set onSpeechPartialResults(fn: (e: SpeechResultsEvent) => void);
+     set onSpeechVolumeChanged(fn: (e: SpeechVolumeChangeEvent) => void);
+ }
+-export { SpeechEndEvent, SpeechErrorEvent, SpeechEvents, SpeechStartEvent, SpeechRecognizedEvent, SpeechResultsEvent, SpeechVolumeChangeEvent, };
++export type { SpeechEndEvent, SpeechErrorEvent, SpeechEvents, SpeechStartEvent, SpeechRecognizedEvent, SpeechResultsEvent, SpeechVolumeChangeEvent, TranscriptionEndEvent, TranscriptionErrorEvent, TranscriptionEvents, TranscriptionStartEvent, TranscriptionResultsEvent, };
+ declare const _default: RCTVoice;
+ export default _default;
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/index.d.ts.map b/node_modules/@react-native-voice/voice/dist/index.d.ts.map
+index f85b408..42b45fc 100644
+--- a/node_modules/@react-native-voice/voice/dist/index.d.ts.map
++++ b/node_modules/@react-native-voice/voice/dist/index.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../src/index.ts"],"names":[],"mappings":"AAEA,OAAO,EAEL,YAAY,EACZ,qBAAqB,EACrB,gBAAgB,EAChB,kBAAkB,EAClB,gBAAgB,EAChB,cAAc,EACd,uBAAuB,EACxB,MAAM,oBAAoB,CAAC;AAS5B,cAAM,QAAQ;IACZ,OAAO,EAAE,OAAO,CAAC;IACjB,UAAU,EAAE,GAAG,EAAE,GAAG,IAAI,CAAC;IACzB,OAAO,EAAE,QAAQ,CAAC,YAAY,CAAC,CAAC;;IAgBhC,kBAAkB;IAUlB,OAAO;IAmBP,KAAK,CAAC,MAAM,EAAE,GAAG,EAAE,OAAO,KAAK;IAkC/B,IAAI;IAcJ,MAAM;IAcN,WAAW,IAAI,OAAO,CAAC,CAAC,GAAG,CAAC,CAAC;IAY7B;;SAEK;IACL,4BAA4B;IAY5B,aAAa,IAAI,OAAO,CAAC,CAAC,GAAG,CAAC,CAAC;IAM/B,IAAI,aAAa,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,gBAAgB,KAAK,IAAI,EAElD;IAED,IAAI,kBAAkB,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,qBAAqB,KAAK,IAAI,EAE5D;IACD,IAAI,WAAW,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,cAAc,KAAK,IAAI,EAE9C;IACD,IAAI,aAAa,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,gBAAgB,KAAK,IAAI,EAElD;IACD,IAAI,eAAe,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,kBAAkB,KAAK,IAAI,EAEtD;IACD,IAAI,sBAAsB,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,kBAAkB,KAAK,IAAI,EAE7D;IACD,IAAI,qBAAqB,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,uBAAuB,KAAK,IAAI,EAEjE;CACF;AAED,OAAO,EACL,cAAc,EACd,gBAAgB,EAChB,YAAY,EACZ,gBAAgB,EAChB,qBAAqB,EACrB,kBAAkB,EAClB,uBAAuB,GACxB,CAAC;;AACF,wBAA8B"}
+\ No newline at end of file
++{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../src/index.ts"],"names":[],"mappings":"AAOA,OAAO,EACL,KAAK,YAAY,EACjB,KAAK,mBAAmB,EACxB,KAAK,qBAAqB,EAC1B,KAAK,uBAAuB,EAC5B,KAAK,uBAAuB,EAC5B,KAAK,qBAAqB,EAC1B,KAAK,gBAAgB,EACrB,KAAK,kBAAkB,EACvB,KAAK,gBAAgB,EACrB,KAAK,cAAc,EACnB,KAAK,uBAAuB,EAC5B,KAAK,yBAAyB,EAC/B,MAAM,oBAAoB,CAAC;AAkC5B,cAAM,QAAQ;IACZ,OAAO,CAAC,OAAO,CAAU;IACzB,OAAO,CAAC,UAAU,CAAsB;IACxC,OAAO,CAAC,OAAO,CAAyD;;IAoBxE,kBAAkB;IAYlB,OAAO;IAeP,oBAAoB;IAmBpB,KAAK,CAAC,MAAM,EAAE,MAAM,EAAE,OAAO,KAAK;IAsClC,kBAAkB,CAAC,GAAG,EAAE,MAAM,EAAE,MAAM,EAAE,MAAM,EAAE,OAAO,KAAK;IAoC5D,IAAI;IAcJ,iBAAiB;IAcjB,MAAM;IAcN,mBAAmB;IAcnB,WAAW,IAAI,OAAO,CAAC,CAAC,GAAG,CAAC,CAAC;IAY7B;;SAEK;IACL,4BAA4B;IAY5B,aAAa,IAAI,OAAO,CAAC,CAAC,GAAG,CAAC,CAAC;IAM/B,IAAI,aAAa,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,gBAAgB,KAAK,IAAI,EAElD;IAED,IAAI,oBAAoB,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,uBAAuB,KAAK,IAAI,EAEhE;IAED,IAAI,kBAAkB,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,qBAAqB,KAAK,IAAI,EAE5D;IAED,IAAI,WAAW,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,cAAc,KAAK,IAAI,EAE9C;IAED,IAAI,kBAAkB,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,cAAc,KAAK,IAAI,EAErD;IACD,IAAI,aAAa,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,gBAAgB,KAAK,IAAI,EAElD;IAED,IAAI,oBAAoB,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,uBAAuB,KAAK,IAAI,EAEhE;IAED,IAAI,eAAe,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,kBAAkB,KAAK,IAAI,EAEtD;IAED,IAAI,sBAAsB,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,yBAAyB,KAAK,IAAI,EAEpE;IAED,IAAI,sBAAsB,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,kBAAkB,KAAK,IAAI,EAE7D;IACD,IAAI,qBAAqB,CAAC,EAAE,EAAE,CAAC,CAAC,EAAE,uBAAuB,KAAK,IAAI,EAEjE;CACF;AAED,YAAY,EACV,cAAc,EACd,gBAAgB,EAChB,YAAY,EACZ,gBAAgB,EAChB,qBAAqB,EACrB,kBAAkB,EAClB,uBAAuB,EACvB,qBAAqB,EACrB,uBAAuB,EACvB,mBAAmB,EACnB,uBAAuB,EACvB,yBAAyB,GAC1B,CAAC;;AACF,wBAA8B"}
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/index.js b/node_modules/@react-native-voice/voice/dist/index.js
+index a10af13..abc184b 100644
+--- a/node_modules/@react-native-voice/voice/dist/index.js
++++ b/node_modules/@react-native-voice/voice/dist/index.js
+@@ -1,17 +1,33 @@
+-"use strict";
+-var __importDefault = (this && this.__importDefault) || function (mod) {
+-    return (mod && mod.__esModule) ? mod : { "default": mod };
+-};
+-Object.defineProperty(exports, "__esModule", { value: true });
+-const react_native_1 = require("react-native");
+-const invariant_1 = __importDefault(require("invariant"));
+-const Voice = react_native_1.NativeModules.Voice;
++import { NativeModules, NativeEventEmitter, Platform, } from 'react-native';
++import invariant from 'invariant';
++import {} from './VoiceModuleTypes';
++const LINKING_ERROR = `The package '@react-native-voice/voice' doesn't seem to be linked. Make sure: \n\n` +
++    Platform.select({ ios: "- You have run 'pod install'\n", default: '' }) +
++    '- You rebuilt the app after installing the package\n' +
++    '- You are not using Expo Go\n';
++//@ts-expect-error
++const isTurboModuleEnabled = global.__turboModuleProxy != null;
++const VoiceNativeModule = isTurboModuleEnabled
++    ? Platform.OS === 'android'
++        ? require('./NativeVoiceAndroid').default
++        : require('./NativeVoiceIOS').default
++    : NativeModules.Voice;
++const Voice = VoiceNativeModule
++    ? VoiceNativeModule
++    : new Proxy({}, {
++        get() {
++            throw new Error(LINKING_ERROR);
++        },
++    });
+ // NativeEventEmitter is only availabe on React Native platforms, so this conditional is used to avoid import conflicts in the browser/server
+-const voiceEmitter = react_native_1.Platform.OS !== 'web' ? new react_native_1.NativeEventEmitter(Voice) : null;
++const voiceEmitter = Platform.OS !== 'web' ? new NativeEventEmitter(Voice) : null;
+ class RCTVoice {
++    _loaded;
++    _listeners;
++    _events;
+     constructor() {
+         this._loaded = false;
+-        this._listeners = null;
++        this._listeners = JSON.parse(JSON.stringify([]));
+         this._events = {
+             onSpeechStart: () => { },
+             onSpeechRecognized: () => { },
+@@ -20,16 +36,21 @@ class RCTVoice {
+             onSpeechResults: () => { },
+             onSpeechPartialResults: () => { },
+             onSpeechVolumeChanged: () => { },
++            onTranscriptionStart: () => { },
++            onTranscriptionEnd: () => { },
++            onTranscriptionError: () => { },
++            onTranscriptionResults: () => { },
+         };
+     }
+     removeAllListeners() {
+-        Voice.onSpeechStart = undefined;
+-        Voice.onSpeechRecognized = undefined;
+-        Voice.onSpeechEnd = undefined;
+-        Voice.onSpeechError = undefined;
+-        Voice.onSpeechResults = undefined;
+-        Voice.onSpeechPartialResults = undefined;
+-        Voice.onSpeechVolumeChanged = undefined;
++        if (this._listeners) {
++            this._listeners.forEach((listener) => {
++                if (listener?.remove) {
++                    listener?.remove();
++                }
++            });
++            this._listeners = JSON.parse(JSON.stringify([]));
++        }
+     }
+     destroy() {
+         if (!this._loaded && !this._listeners) {
+@@ -41,9 +62,25 @@ class RCTVoice {
+                     reject(new Error(error));
+                 }
+                 else {
+-                    if (this._listeners) {
+-                        this._listeners.map(listener => listener.remove());
+-                        this._listeners = null;
++                    this.removeAllListeners();
++                    resolve();
++                }
++            });
++        });
++    }
++    destroyTranscription() {
++        if (!this._loaded && !this._listeners) {
++            return Promise.resolve();
++        }
++        return new Promise((resolve, reject) => {
++            Voice.destroyTranscription((error) => {
++                if (error) {
++                    reject(new Error(error));
++                }
++                else {
++                    if (this._listeners?.length > 0) {
++                        this._listeners.forEach((listener) => listener.remove());
++                        this._listeners = JSON.parse(JSON.stringify([]));
+                     }
+                     resolve();
+                 }
+@@ -51,7 +88,9 @@ class RCTVoice {
+         });
+     }
+     start(locale, options = {}) {
+-        if (!this._loaded && !this._listeners && voiceEmitter !== null) {
++        if (!this._loaded &&
++            this._listeners.length === 0 &&
++            voiceEmitter !== null) {
+             this._listeners = Object.keys(this._events).map((key) => voiceEmitter.addListener(key, this._events[key]));
+         }
+         return new Promise((resolve, reject) => {
+@@ -63,7 +102,7 @@ class RCTVoice {
+                     resolve();
+                 }
+             };
+-            if (react_native_1.Platform.OS === 'android') {
++            if (Platform.OS === 'android') {
+                 Voice.startSpeech(locale, Object.assign({
+                     EXTRA_LANGUAGE_MODEL: 'LANGUAGE_MODEL_FREE_FORM',
+                     EXTRA_MAX_RESULTS: 5,
+@@ -76,12 +115,53 @@ class RCTVoice {
+             }
+         });
+     }
++    startTranscription(url, locale, options = {}) {
++        if (!this._loaded && !this._listeners && voiceEmitter !== null) {
++            this._listeners = Object.keys(this._events).map((key) => voiceEmitter.addListener(key, this._events[key]));
++        }
++        return new Promise((resolve, reject) => {
++            const callback = (error) => {
++                if (error) {
++                    reject(new Error(error));
++                }
++                else {
++                    resolve();
++                }
++            };
++            if (Platform.OS === 'android') {
++                Voice.startTranscription(url, locale, Object.assign({
++                    EXTRA_LANGUAGE_MODEL: 'LANGUAGE_MODEL_FREE_FORM',
++                    EXTRA_MAX_RESULTS: 5,
++                    EXTRA_PARTIAL_RESULTS: true,
++                    REQUEST_PERMISSIONS_AUTO: true,
++                }, options), callback);
++            }
++            else {
++                Voice.startTranscription(url, locale, callback);
++            }
++        });
++    }
+     stop() {
+         if (!this._loaded && !this._listeners) {
+             return Promise.resolve();
+         }
+         return new Promise((resolve, reject) => {
+-            Voice.stopSpeech(error => {
++            Voice.stopSpeech((error) => {
++                if (error) {
++                    reject(new Error(error));
++                }
++                else {
++                    resolve();
++                }
++            });
++        });
++    }
++    stopTranscription() {
++        if (!this._loaded && !this._listeners) {
++            return Promise.resolve();
++        }
++        return new Promise((resolve, reject) => {
++            Voice.stopTranscription((error) => {
+                 if (error) {
+                     reject(new Error(error));
+                 }
+@@ -96,7 +176,22 @@ class RCTVoice {
+             return Promise.resolve();
+         }
+         return new Promise((resolve, reject) => {
+-            Voice.cancelSpeech(error => {
++            Voice.cancelSpeech((error) => {
++                if (error) {
++                    reject(new Error(error));
++                }
++                else {
++                    resolve();
++                }
++            });
++        });
++    }
++    cancelTranscription() {
++        if (!this._loaded && !this._listeners) {
++            return Promise.resolve();
++        }
++        return new Promise((resolve, reject) => {
++            Voice.cancelSpeech((error) => {
+                 if (error) {
+                     reject(new Error(error));
+                 }
+@@ -122,32 +217,44 @@ class RCTVoice {
+      * (Android) Get a list of the speech recognition engines available on the device
+      * */
+     getSpeechRecognitionServices() {
+-        if (react_native_1.Platform.OS !== 'android') {
+-            invariant_1.default(Voice, 'Speech recognition services can be queried for only on Android');
++        if (Platform.OS !== 'android') {
++            invariant(Voice, 'Speech recognition services can be queried for only on Android');
+             return;
+         }
+         return Voice.getSpeechRecognitionServices();
+     }
+     isRecognizing() {
+-        return new Promise(resolve => {
++        return new Promise((resolve) => {
+             Voice.isRecognizing((isRecognizing) => resolve(isRecognizing));
+         });
+     }
+     set onSpeechStart(fn) {
+         this._events.onSpeechStart = fn;
+     }
++    set onTranscriptionStart(fn) {
++        this._events.onTranscriptionStart = fn;
++    }
+     set onSpeechRecognized(fn) {
+         this._events.onSpeechRecognized = fn;
+     }
+     set onSpeechEnd(fn) {
+         this._events.onSpeechEnd = fn;
+     }
++    set onTranscriptionEnd(fn) {
++        this._events.onTranscriptionEnd = fn;
++    }
+     set onSpeechError(fn) {
+         this._events.onSpeechError = fn;
+     }
++    set onTranscriptionError(fn) {
++        this._events.onTranscriptionError = fn;
++    }
+     set onSpeechResults(fn) {
+         this._events.onSpeechResults = fn;
+     }
++    set onTranscriptionResults(fn) {
++        this._events.onTranscriptionResults = fn;
++    }
+     set onSpeechPartialResults(fn) {
+         this._events.onSpeechPartialResults = fn;
+     }
+@@ -155,4 +262,5 @@ class RCTVoice {
+         this._events.onSpeechVolumeChanged = fn;
+     }
+ }
+-exports.default = new RCTVoice();
++export default new RCTVoice();
++//# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/dist/index.js.map b/node_modules/@react-native-voice/voice/dist/index.js.map
+new file mode 100644
+index 0000000..a99e22b
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/dist/index.js.map
+@@ -0,0 +1 @@
++{"version":3,"file":"index.js","sourceRoot":"","sources":["../src/index.ts"],"names":[],"mappings":"AAAA,OAAO,EACL,aAAa,EACb,kBAAkB,EAClB,QAAQ,GAET,MAAM,cAAc,CAAC;AACtB,OAAO,SAAS,MAAM,WAAW,CAAC;AAClC,OAAO,EAaN,MAAM,oBAAoB,CAAC;AAE5B,MAAM,aAAa,GACjB,oFAAoF;IACpF,QAAQ,CAAC,MAAM,CAAC,EAAE,GAAG,EAAE,gCAAgC,EAAE,OAAO,EAAE,EAAE,EAAE,CAAC;IACvE,sDAAsD;IACtD,+BAA+B,CAAC;AAElC,kBAAkB;AAClB,MAAM,oBAAoB,GAAG,MAAM,CAAC,kBAAkB,IAAI,IAAI,CAAC;AAE/D,MAAM,iBAAiB,GAAG,oBAAoB;IAC5C,CAAC,CAAC,QAAQ,CAAC,EAAE,KAAK,SAAS;QACzB,CAAC,CAAC,OAAO,CAAC,sBAAsB,CAAC,CAAC,OAAO;QACzC,CAAC,CAAC,OAAO,CAAC,kBAAkB,CAAC,CAAC,OAAO;IACvC,CAAC,CAAC,aAAa,CAAC,KAAK,CAAC;AAExB,MAAM,KAAK,GAAG,iBAAiB;IAC7B,CAAC,CAAC,iBAAiB;IACnB,CAAC,CAAC,IAAI,KAAK,CACP,EAAE,EACF;QACE,GAAG;YACD,MAAM,IAAI,KAAK,CAAC,aAAa,CAAC,CAAC;QACjC,CAAC;KACF,CACF,CAAC;AAEN,6IAA6I;AAC7I,MAAM,YAAY,GAChB,QAAQ,CAAC,EAAE,KAAK,KAAK,CAAC,CAAC,CAAC,IAAI,kBAAkB,CAAC,KAAK,CAAC,CAAC,CAAC,CAAC,IAAI,CAAC;AAI/D,MAAM,QAAQ;IACJ,OAAO,CAAU;IACjB,UAAU,CAAsB;IAChC,OAAO,CAAyD;IAExE;QACE,IAAI,CAAC,OAAO,GAAG,KAAK,CAAC;QACrB,IAAI,CAAC,UAAU,GAAG,IAAI,CAAC,KAAK,CAAC,IAAI,CAAC,SAAS,CAAC,EAAE,CAAC,CAAC,CAAC;QACjD,IAAI,CAAC,OAAO,GAAG;YACb,aAAa,EAAE,GAAG,EAAE,GAAE,CAAC;YACvB,kBAAkB,EAAE,GAAG,EAAE,GAAE,CAAC;YAC5B,WAAW,EAAE,GAAG,EAAE,GAAE,CAAC;YACrB,aAAa,EAAE,GAAG,EAAE,GAAE,CAAC;YACvB,eAAe,EAAE,GAAG,EAAE,GAAE,CAAC;YACzB,sBAAsB,EAAE,GAAG,EAAE,GAAE,CAAC;YAChC,qBAAqB,EAAE,GAAG,EAAE,GAAE,CAAC;YAC/B,oBAAoB,EAAE,GAAG,EAAE,GAAE,CAAC;YAC9B,kBAAkB,EAAE,GAAG,EAAE,GAAE,CAAC;YAC5B,oBAAoB,EAAE,GAAG,EAAE,GAAE,CAAC;YAC9B,sBAAsB,EAAE,GAAG,EAAE,GAAE,CAAC;SACjC,CAAC;IACJ,CAAC;IAED,kBAAkB;QAChB,IAAI,IAAI,CAAC,UAAU,EAAE,CAAC;YACpB,IAAI,CAAC,UAAU,CAAC,OAAO,CAAC,CAAC,QAAQ,EAAE,EAAE;gBACnC,IAAI,QAAQ,EAAE,MAAM,EAAE,CAAC;oBACrB,QAAQ,EAAE,MAAM,EAAE,CAAC;gBACrB,CAAC;YACH,CAAC,CAAC,CAAC;YAEH,IAAI,CAAC,UAAU,GAAG,IAAI,CAAC,KAAK,CAAC,IAAI,CAAC,SAAS,CAAC,EAAE,CAAC,CAAC,CAAC;QACnD,CAAC;IACH,CAAC;IAED,OAAO;QACL,IAAI,CAAC,IAAI,CAAC,OAAO,IAAI,CAAC,IAAI,CAAC,UAAU,EAAE,CAAC;YACtC,OAAO,OAAO,CAAC,OAAO,EAAE,CAAC;QAC3B,CAAC;QACD,OAAO,IAAI,OAAO,CAAO,CAAC,OAAO,EAAE,MAAM,EAAE,EAAE;YAC3C,KAAK,CAAC,aAAa,CAAC,CAAC,KAAa,EAAE,EAAE;gBACpC,IAAI,KAAK,EAAE,CAAC;oBACV,MAAM,CAAC,IAAI,KAAK,CAAC,KAAK,CAAC,CAAC,CAAC;gBAC3B,CAAC;qBAAM,CAAC;oBACN,IAAI,CAAC,kBAAkB,EAAE,CAAC;oBAC1B,OAAO,EAAE,CAAC;gBACZ,CAAC;YACH,CAAC,CAAC,CAAC;QACL,CAAC,CAAC,CAAC;IACL,CAAC;IACD,oBAAoB;QAClB,IAAI,CAAC,IAAI,CAAC,OAAO,IAAI,CAAC,IAAI,CAAC,UAAU,EAAE,CAAC;YACtC,OAAO,OAAO,CAAC,OAAO,EAAE,CAAC;QAC3B,CAAC;QACD,OAAO,IAAI,OAAO,CAAO,CAAC,OAAO,EAAE,MAAM,EAAE,EAAE;YAC3C,KAAK,CAAC,oBAAoB,CAAC,CAAC,KAAa,EAAE,EAAE;gBAC3C,IAAI,KAAK,EAAE,CAAC;oBACV,MAAM,CAAC,IAAI,KAAK,CAAC,KAAK,CAAC,CAAC,CAAC;gBAC3B,CAAC;qBAAM,CAAC;oBACN,IAAI,IAAI,CAAC,UAAU,EAAE,MAAM,GAAG,CAAC,EAAE,CAAC;wBAChC,IAAI,CAAC,UAAU,CAAC,OAAO,CAAC,CAAC,QAAQ,EAAE,EAAE,CAAC,QAAQ,CAAC,MAAM,EAAE,CAAC,CAAC;wBACzD,IAAI,CAAC,UAAU,GAAG,IAAI,CAAC,KAAK,CAAC,IAAI,CAAC,SAAS,CAAC,EAAE,CAAC,CAAC,CAAC;oBACnD,CAAC;oBACD,OAAO,EAAE,CAAC;gBACZ,CAAC;YACH,CAAC,CAAC,CAAC;QACL,CAAC,CAAC,CAAC;IACL,CAAC;IAED,KAAK,CAAC,MAAc,EAAE,OAAO,GAAG,EAAE;QAChC,IACE,CAAC,IAAI,CAAC,OAAO;YACb,IAAI,CAAC,UAAU,CAAC,MAAM,KAAK,CAAC;YAC5B,YAAY,KAAK,IAAI,EACrB,CAAC;YACD,IAAI,CAAC,UAAU,GAAI,MAAM,CAAC,IAAI,CAAC,IAAI,CAAC,OAAO,CAAmB,CAAC,GAAG,CAChE,CAAC,GAAgB,EAAE,EAAE,CAAC,YAAY,CAAC,WAAW,CAAC,GAAG,EAAE,IAAI,CAAC,OAAO,CAAC,GAAG,CAAC,CAAC,CACvE,CAAC;QACJ,CAAC;QAED,OAAO,IAAI,OAAO,CAAO,CAAC,OAAO,EAAE,MAAM,EAAE,EAAE;YAC3C,MAAM,QAAQ,GAAG,CAAC,KAAa,EAAE,EAAE;gBACjC,IAAI,KAAK,EAAE,CAAC;oBACV,MAAM,CAAC,IAAI,KAAK,CAAC,KAAK,CAAC,CAAC,CAAC;gBAC3B,CAAC;qBAAM,CAAC;oBACN,OAAO,EAAE,CAAC;gBACZ,CAAC;YACH,CAAC,CAAC;YACF,IAAI,QAAQ,CAAC,EAAE,KAAK,SAAS,EAAE,CAAC;gBAC9B,KAAK,CAAC,WAAW,CACf,MAAM,EACN,MAAM,CAAC,MAAM,CACX;oBACE,oBAAoB,EAAE,0BAA0B;oBAChD,iBAAiB,EAAE,CAAC;oBACpB,qBAAqB,EAAE,IAAI;oBAC3B,wBAAwB,EAAE,IAAI;iBAC/B,EACD,OAAO,CACR,EACD,QAAQ,CACT,CAAC;YACJ,CAAC;iBAAM,CAAC;gBACN,KAAK,CAAC,WAAW,CAAC,MAAM,EAAE,QAAQ,CAAC,CAAC;YACtC,CAAC;QACH,CAAC,CAAC,CAAC;IACL,CAAC;IACD,kBAAkB,CAAC,GAAW,EAAE,MAAc,EAAE,OAAO,GAAG,EAAE;QAC1D,IAAI,CAAC,IAAI,CAAC,OAAO,IAAI,CAAC,IAAI,CAAC,UAAU,IAAI,YAAY,KAAK,IAAI,EAAE,CAAC;YAC/D,IAAI,CAAC,UAAU,GAAI,MAAM,CAAC,IAAI,CAAC,IAAI,CAAC,OAAO,CAA0B,CAAC,GAAG,CACvE,CAAC,GAAuB,EAAE,EAAE,CAC1B,YAAY,CAAC,WAAW,CAAC,GAAG,EAAE,IAAI,CAAC,OAAO,CAAC,GAAG,CAAC,CAAC,CACnD,CAAC;QACJ,CAAC;QAED,OAAO,IAAI,OAAO,CAAO,CAAC,OAAO,EAAE,MAAM,EAAE,EAAE;YAC3C,MAAM,QAAQ,GAAG,CAAC,KAAa,EAAE,EAAE;gBACjC,IAAI,KAAK,EAAE,CAAC;oBACV,MAAM,CAAC,IAAI,KAAK,CAAC,KAAK,CAAC,CAAC,CAAC;gBAC3B,CAAC;qBAAM,CAAC;oBACN,OAAO,EAAE,CAAC;gBACZ,CAAC;YACH,CAAC,CAAC;YACF,IAAI,QAAQ,CAAC,EAAE,KAAK,SAAS,EAAE,CAAC;gBAC9B,KAAK,CAAC,kBAAkB,CACtB,GAAG,EACH,MAAM,EACN,MAAM,CAAC,MAAM,CACX;oBACE,oBAAoB,EAAE,0BAA0B;oBAChD,iBAAiB,EAAE,CAAC;oBACpB,qBAAqB,EAAE,IAAI;oBAC3B,wBAAwB,EAAE,IAAI;iBAC/B,EACD,OAAO,CACR,EACD,QAAQ,CACT,CAAC;YACJ,CAAC;iBAAM,CAAC;gBACN,KAAK,CAAC,kBAAkB,CAAC,GAAG,EAAE,MAAM,EAAE,QAAQ,CAAC,CAAC;YAClD,CAAC;QACH,CAAC,CAAC,CAAC;IACL,CAAC;IACD,IAAI;QACF,IAAI,CAAC,IAAI,CAAC,OAAO,IAAI,CAAC,IAAI,CAAC,UAAU,EAAE,CAAC;YACtC,OAAO,OAAO,CAAC,OAAO,EAAE,CAAC;QAC3B,CAAC;QACD,OAAO,IAAI,OAAO,CAAO,CAAC,OAAO,EAAE,MAAM,EAAE,EAAE;YAC3C,KAAK,CAAC,UAAU,CAAC,CAAC,KAAc,EAAE,EAAE;gBAClC,IAAI,KAAK,EAAE,CAAC;oBACV,MAAM,CAAC,IAAI,KAAK,CAAC,KAAK,CAAC,CAAC,CAAC;gBAC3B,CAAC;qBAAM,CAAC;oBACN,OAAO,EAAE,CAAC;gBACZ,CAAC;YACH,CAAC,CAAC,CAAC;QACL,CAAC,CAAC,CAAC;IACL,CAAC;IACD,iBAAiB;QACf,IAAI,CAAC,IAAI,CAAC,OAAO,IAAI,CAAC,IAAI,CAAC,UAAU,EAAE,CAAC;YACtC,OAAO,OAAO,CAAC,OAAO,EAAE,CAAC;QAC3B,CAAC;QACD,OAAO,IAAI,OAAO,CAAO,CAAC,OAAO,EAAE,MAAM,EAAE,EAAE;YAC3C,KAAK,CAAC,iBAAiB,CAAC,CAAC,KAAc,EAAE,EAAE;gBACzC,IAAI,KAAK,EAAE,CAAC;oBACV,MAAM,CAAC,IAAI,KAAK,CAAC,KAAK,CAAC,CAAC,CAAC;gBAC3B,CAAC;qBAAM,CAAC;oBACN,OAAO,EAAE,CAAC;gBACZ,CAAC;YACH,CAAC,CAAC,CAAC;QACL,CAAC,CAAC,CAAC;IACL,CAAC;IACD,MAAM;QACJ,IAAI,CAAC,IAAI,CAAC,OAAO,IAAI,CAAC,IAAI,CAAC,UAAU,EAAE,CAAC;YACtC,OAAO,OAAO,CAAC,OAAO,EAAE,CAAC;QAC3B,CAAC;QACD,OAAO,IAAI,OAAO,CAAO,CAAC,OAAO,EAAE,MAAM,EAAE,EAAE;YAC3C,KAAK,CAAC,YAAY,CAAC,CAAC,KAAc,EAAE,EAAE;gBACpC,IAAI,KAAK,EAAE,CAAC;oBACV,MAAM,CAAC,IAAI,KAAK,CAAC,KAAK,CAAC,CAAC,CAAC;gBAC3B,CAAC;qBAAM,CAAC;oBACN,OAAO,EAAE,CAAC;gBACZ,CAAC;YACH,CAAC,CAAC,CAAC;QACL,CAAC,CAAC,CAAC;IACL,CAAC;IACD,mBAAmB;QACjB,IAAI,CAAC,IAAI,CAAC,OAAO,IAAI,CAAC,IAAI,CAAC,UAAU,EAAE,CAAC;YACtC,OAAO,OAAO,CAAC,OAAO,EAAE,CAAC;QAC3B,CAAC;QACD,OAAO,IAAI,OAAO,CAAO,CAAC,OAAO,EAAE,MAAM,EAAE,EAAE;YAC3C,KAAK,CAAC,YAAY,CAAC,CAAC,KAAc,EAAE,EAAE;gBACpC,IAAI,KAAK,EAAE,CAAC;oBACV,MAAM,CAAC,IAAI,KAAK,CAAC,KAAK,CAAC,CAAC,CAAC;gBAC3B,CAAC;qBAAM,CAAC;oBACN,OAAO,EAAE,CAAC;gBACZ,CAAC;YACH,CAAC,CAAC,CAAC;QACL,CAAC,CAAC,CAAC;IACL,CAAC;IACD,WAAW;QACT,OAAO,IAAI,OAAO,CAAC,CAAC,OAAO,EAAE,MAAM,EAAE,EAAE;YACrC,KAAK,CAAC,iBAAiB,CAAC,CAAC,WAAkB,EAAE,KAAa,EAAE,EAAE;gBAC5D,IAAI,KAAK,EAAE,CAAC;oBACV,MAAM,CAAC,IAAI,KAAK,CAAC,KAAK,CAAC,CAAC,CAAC;gBAC3B,CAAC;qBAAM,CAAC;oBACN,OAAO,CAAC,WAAW,CAAC,CAAC;gBACvB,CAAC;YACH,CAAC,CAAC,CAAC;QACL,CAAC,CAAC,CAAC;IACL,CAAC;IAED;;SAEK;IACL,4BAA4B;QAC1B,IAAI,QAAQ,CAAC,EAAE,KAAK,SAAS,EAAE,CAAC;YAC9B,SAAS,CACP,KAAK,EACL,gEAAgE,CACjE,CAAC;YACF,OAAO;QACT,CAAC;QAED,OAAO,KAAK,CAAC,4BAA4B,EAAE,CAAC;IAC9C,CAAC;IAED,aAAa;QACX,OAAO,IAAI,OAAO,CAAC,CAAC,OAAO,EAAE,EAAE;YAC7B,KAAK,CAAC,aAAa,CAAC,CAAC,aAAoB,EAAE,EAAE,CAAC,OAAO,CAAC,aAAa,CAAC,CAAC,CAAC;QACxE,CAAC,CAAC,CAAC;IACL,CAAC;IAED,IAAI,aAAa,CAAC,EAAiC;QACjD,IAAI,CAAC,OAAO,CAAC,aAAa,GAAG,EAAE,CAAC;IAClC,CAAC;IAED,IAAI,oBAAoB,CAAC,EAAwC;QAC/D,IAAI,CAAC,OAAO,CAAC,oBAAoB,GAAG,EAAE,CAAC;IACzC,CAAC;IAED,IAAI,kBAAkB,CAAC,EAAsC;QAC3D,IAAI,CAAC,OAAO,CAAC,kBAAkB,GAAG,EAAE,CAAC;IACvC,CAAC;IAED,IAAI,WAAW,CAAC,EAA+B;QAC7C,IAAI,CAAC,OAAO,CAAC,WAAW,GAAG,EAAE,CAAC;IAChC,CAAC;IAED,IAAI,kBAAkB,CAAC,EAA+B;QACpD,IAAI,CAAC,OAAO,CAAC,kBAAkB,GAAG,EAAE,CAAC;IACvC,CAAC;IACD,IAAI,aAAa,CAAC,EAAiC;QACjD,IAAI,CAAC,OAAO,CAAC,aAAa,GAAG,EAAE,CAAC;IAClC,CAAC;IAED,IAAI,oBAAoB,CAAC,EAAwC;QAC/D,IAAI,CAAC,OAAO,CAAC,oBAAoB,GAAG,EAAE,CAAC;IACzC,CAAC;IAED,IAAI,eAAe,CAAC,EAAmC;QACrD,IAAI,CAAC,OAAO,CAAC,eAAe,GAAG,EAAE,CAAC;IACpC,CAAC;IAED,IAAI,sBAAsB,CAAC,EAA0C;QACnE,IAAI,CAAC,OAAO,CAAC,sBAAsB,GAAG,EAAE,CAAC;IAC3C,CAAC;IAED,IAAI,sBAAsB,CAAC,EAAmC;QAC5D,IAAI,CAAC,OAAO,CAAC,sBAAsB,GAAG,EAAE,CAAC;IAC3C,CAAC;IACD,IAAI,qBAAqB,CAAC,EAAwC;QAChE,IAAI,CAAC,OAAO,CAAC,qBAAqB,GAAG,EAAE,CAAC;IAC1C,CAAC;CACF;AAgBD,eAAe,IAAI,QAAQ,EAAE,CAAC","sourcesContent":["import {\n  NativeModules,\n  NativeEventEmitter,\n  Platform,\n  type EventSubscription,\n} from 'react-native';\nimport invariant from 'invariant';\nimport {\n  type SpeechEvents,\n  type TranscriptionEvents,\n  type TranscriptionEndEvent,\n  type TranscriptionErrorEvent,\n  type TranscriptionStartEvent,\n  type SpeechRecognizedEvent,\n  type SpeechErrorEvent,\n  type SpeechResultsEvent,\n  type SpeechStartEvent,\n  type SpeechEndEvent,\n  type SpeechVolumeChangeEvent,\n  type TranscriptionResultsEvent,\n} from './VoiceModuleTypes';\n\nconst LINKING_ERROR =\n  `The package '@react-native-voice/voice' doesn't seem to be linked. Make sure: \\n\\n` +\n  Platform.select({ ios: \"- You have run 'pod install'\\n\", default: '' }) +\n  '- You rebuilt the app after installing the package\\n' +\n  '- You are not using Expo Go\\n';\n\n//@ts-expect-error\nconst isTurboModuleEnabled = global.__turboModuleProxy != null;\n\nconst VoiceNativeModule = isTurboModuleEnabled\n  ? Platform.OS === 'android'\n    ? require('./NativeVoiceAndroid').default\n    : require('./NativeVoiceIOS').default\n  : NativeModules.Voice;\n\nconst Voice = VoiceNativeModule\n  ? VoiceNativeModule\n  : new Proxy(\n      {},\n      {\n        get() {\n          throw new Error(LINKING_ERROR);\n        },\n      },\n    );\n\n// NativeEventEmitter is only availabe on React Native platforms, so this conditional is used to avoid import conflicts in the browser/server\nconst voiceEmitter =\n  Platform.OS !== 'web' ? new NativeEventEmitter(Voice) : null;\ntype SpeechEvent = keyof SpeechEvents;\ntype TranscriptionEvent = keyof TranscriptionEvents;\n\nclass RCTVoice {\n  private _loaded: boolean;\n  private _listeners: EventSubscription[];\n  private _events: Required<SpeechEvents> & Required<TranscriptionEvents>;\n\n  constructor() {\n    this._loaded = false;\n    this._listeners = JSON.parse(JSON.stringify([]));\n    this._events = {\n      onSpeechStart: () => {},\n      onSpeechRecognized: () => {},\n      onSpeechEnd: () => {},\n      onSpeechError: () => {},\n      onSpeechResults: () => {},\n      onSpeechPartialResults: () => {},\n      onSpeechVolumeChanged: () => {},\n      onTranscriptionStart: () => {},\n      onTranscriptionEnd: () => {},\n      onTranscriptionError: () => {},\n      onTranscriptionResults: () => {},\n    };\n  }\n\n  removeAllListeners() {\n    if (this._listeners) {\n      this._listeners.forEach((listener) => {\n        if (listener?.remove) {\n          listener?.remove();\n        }\n      });\n\n      this._listeners = JSON.parse(JSON.stringify([]));\n    }\n  }\n\n  destroy() {\n    if (!this._loaded && !this._listeners) {\n      return Promise.resolve();\n    }\n    return new Promise<void>((resolve, reject) => {\n      Voice.destroySpeech((error: string) => {\n        if (error) {\n          reject(new Error(error));\n        } else {\n          this.removeAllListeners();\n          resolve();\n        }\n      });\n    });\n  }\n  destroyTranscription() {\n    if (!this._loaded && !this._listeners) {\n      return Promise.resolve();\n    }\n    return new Promise<void>((resolve, reject) => {\n      Voice.destroyTranscription((error: string) => {\n        if (error) {\n          reject(new Error(error));\n        } else {\n          if (this._listeners?.length > 0) {\n            this._listeners.forEach((listener) => listener.remove());\n            this._listeners = JSON.parse(JSON.stringify([]));\n          }\n          resolve();\n        }\n      });\n    });\n  }\n\n  start(locale: string, options = {}) {\n    if (\n      !this._loaded &&\n      this._listeners.length === 0 &&\n      voiceEmitter !== null\n    ) {\n      this._listeners = (Object.keys(this._events) as SpeechEvent[]).map(\n        (key: SpeechEvent) => voiceEmitter.addListener(key, this._events[key]),\n      );\n    }\n\n    return new Promise<void>((resolve, reject) => {\n      const callback = (error: string) => {\n        if (error) {\n          reject(new Error(error));\n        } else {\n          resolve();\n        }\n      };\n      if (Platform.OS === 'android') {\n        Voice.startSpeech(\n          locale,\n          Object.assign(\n            {\n              EXTRA_LANGUAGE_MODEL: 'LANGUAGE_MODEL_FREE_FORM',\n              EXTRA_MAX_RESULTS: 5,\n              EXTRA_PARTIAL_RESULTS: true,\n              REQUEST_PERMISSIONS_AUTO: true,\n            },\n            options,\n          ),\n          callback,\n        );\n      } else {\n        Voice.startSpeech(locale, callback);\n      }\n    });\n  }\n  startTranscription(url: string, locale: string, options = {}) {\n    if (!this._loaded && !this._listeners && voiceEmitter !== null) {\n      this._listeners = (Object.keys(this._events) as TranscriptionEvent[]).map(\n        (key: TranscriptionEvent) =>\n          voiceEmitter.addListener(key, this._events[key]),\n      );\n    }\n\n    return new Promise<void>((resolve, reject) => {\n      const callback = (error: string) => {\n        if (error) {\n          reject(new Error(error));\n        } else {\n          resolve();\n        }\n      };\n      if (Platform.OS === 'android') {\n        Voice.startTranscription(\n          url,\n          locale,\n          Object.assign(\n            {\n              EXTRA_LANGUAGE_MODEL: 'LANGUAGE_MODEL_FREE_FORM',\n              EXTRA_MAX_RESULTS: 5,\n              EXTRA_PARTIAL_RESULTS: true,\n              REQUEST_PERMISSIONS_AUTO: true,\n            },\n            options,\n          ),\n          callback,\n        );\n      } else {\n        Voice.startTranscription(url, locale, callback);\n      }\n    });\n  }\n  stop() {\n    if (!this._loaded && !this._listeners) {\n      return Promise.resolve();\n    }\n    return new Promise<void>((resolve, reject) => {\n      Voice.stopSpeech((error?: string) => {\n        if (error) {\n          reject(new Error(error));\n        } else {\n          resolve();\n        }\n      });\n    });\n  }\n  stopTranscription() {\n    if (!this._loaded && !this._listeners) {\n      return Promise.resolve();\n    }\n    return new Promise<void>((resolve, reject) => {\n      Voice.stopTranscription((error?: string) => {\n        if (error) {\n          reject(new Error(error));\n        } else {\n          resolve();\n        }\n      });\n    });\n  }\n  cancel() {\n    if (!this._loaded && !this._listeners) {\n      return Promise.resolve();\n    }\n    return new Promise<void>((resolve, reject) => {\n      Voice.cancelSpeech((error?: string) => {\n        if (error) {\n          reject(new Error(error));\n        } else {\n          resolve();\n        }\n      });\n    });\n  }\n  cancelTranscription() {\n    if (!this._loaded && !this._listeners) {\n      return Promise.resolve();\n    }\n    return new Promise<void>((resolve, reject) => {\n      Voice.cancelSpeech((error?: string) => {\n        if (error) {\n          reject(new Error(error));\n        } else {\n          resolve();\n        }\n      });\n    });\n  }\n  isAvailable(): Promise<0 | 1> {\n    return new Promise((resolve, reject) => {\n      Voice.isSpeechAvailable((isAvailable: 0 | 1, error: string) => {\n        if (error) {\n          reject(new Error(error));\n        } else {\n          resolve(isAvailable);\n        }\n      });\n    });\n  }\n\n  /**\n   * (Android) Get a list of the speech recognition engines available on the device\n   * */\n  getSpeechRecognitionServices() {\n    if (Platform.OS !== 'android') {\n      invariant(\n        Voice,\n        'Speech recognition services can be queried for only on Android',\n      );\n      return;\n    }\n\n    return Voice.getSpeechRecognitionServices();\n  }\n\n  isRecognizing(): Promise<0 | 1> {\n    return new Promise((resolve) => {\n      Voice.isRecognizing((isRecognizing: 0 | 1) => resolve(isRecognizing));\n    });\n  }\n\n  set onSpeechStart(fn: (e: SpeechStartEvent) => void) {\n    this._events.onSpeechStart = fn;\n  }\n\n  set onTranscriptionStart(fn: (e: TranscriptionStartEvent) => void) {\n    this._events.onTranscriptionStart = fn;\n  }\n\n  set onSpeechRecognized(fn: (e: SpeechRecognizedEvent) => void) {\n    this._events.onSpeechRecognized = fn;\n  }\n\n  set onSpeechEnd(fn: (e: SpeechEndEvent) => void) {\n    this._events.onSpeechEnd = fn;\n  }\n\n  set onTranscriptionEnd(fn: (e: SpeechEndEvent) => void) {\n    this._events.onTranscriptionEnd = fn;\n  }\n  set onSpeechError(fn: (e: SpeechErrorEvent) => void) {\n    this._events.onSpeechError = fn;\n  }\n\n  set onTranscriptionError(fn: (e: TranscriptionErrorEvent) => void) {\n    this._events.onTranscriptionError = fn;\n  }\n\n  set onSpeechResults(fn: (e: SpeechResultsEvent) => void) {\n    this._events.onSpeechResults = fn;\n  }\n\n  set onTranscriptionResults(fn: (e: TranscriptionResultsEvent) => void) {\n    this._events.onTranscriptionResults = fn;\n  }\n\n  set onSpeechPartialResults(fn: (e: SpeechResultsEvent) => void) {\n    this._events.onSpeechPartialResults = fn;\n  }\n  set onSpeechVolumeChanged(fn: (e: SpeechVolumeChangeEvent) => void) {\n    this._events.onSpeechVolumeChanged = fn;\n  }\n}\n\nexport type {\n  SpeechEndEvent,\n  SpeechErrorEvent,\n  SpeechEvents,\n  SpeechStartEvent,\n  SpeechRecognizedEvent,\n  SpeechResultsEvent,\n  SpeechVolumeChangeEvent,\n  TranscriptionEndEvent,\n  TranscriptionErrorEvent,\n  TranscriptionEvents,\n  TranscriptionStartEvent,\n  TranscriptionResultsEvent,\n};\nexport default new RCTVoice();\n"]}
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/eslint.config.js b/node_modules/@react-native-voice/voice/eslint.config.js
+new file mode 100644
+index 0000000..992d792
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/eslint.config.js
+@@ -0,0 +1,3 @@
++module.exports = {
++  extends: '@react-native-community',
++};
+diff --git a/node_modules/@react-native-voice/voice/ios/Voice.xcodeproj/project.xcworkspace/xcuserdata/olumayowadaniel.xcuserdatad/UserInterfaceState.xcuserstate b/node_modules/@react-native-voice/voice/ios/Voice.xcodeproj/project.xcworkspace/xcuserdata/olumayowadaniel.xcuserdatad/UserInterfaceState.xcuserstate
+new file mode 100644
+index 0000000..d706c54
+Binary files /dev/null and b/node_modules/@react-native-voice/voice/ios/Voice.xcodeproj/project.xcworkspace/xcuserdata/olumayowadaniel.xcuserdatad/UserInterfaceState.xcuserstate differ
+diff --git a/node_modules/@react-native-voice/voice/ios/Voice/Voice.h b/node_modules/@react-native-voice/voice/ios/Voice/Voice.h
+index 49d8131..5b031bd 100644
+--- a/node_modules/@react-native-voice/voice/ios/Voice/Voice.h
++++ b/node_modules/@react-native-voice/voice/ios/Voice/Voice.h
+@@ -1,5 +1,14 @@
+-#import <React/RCTBridgeModule.h>
++
+ #import <React/RCTEventEmitter.h>
++#ifdef RCT_NEW_ARCH_ENABLED
++#import "RNVoiceSpec.h"
++
++
++@interface Voice : RCTEventEmitter <NativeVoiceIOSSpec>
++#else
++#import <React/RCTBridgeModule.h>
+ 
+ @interface Voice : RCTEventEmitter <RCTBridgeModule>
++#endif
++
+ @end
+diff --git a/node_modules/@react-native-voice/voice/ios/Voice/Voice.m b/node_modules/@react-native-voice/voice/ios/Voice/Voice.m
+deleted file mode 100644
+index fd9dad8..0000000
+--- a/node_modules/@react-native-voice/voice/ios/Voice/Voice.m
++++ /dev/null
+@@ -1,405 +0,0 @@
+-#import "Voice.h"
+-#import <React/RCTLog.h>
+-#import <UIKit/UIKit.h>
+-#import <React/RCTUtils.h>
+-#import <React/RCTEventEmitter.h>
+-#import <Speech/Speech.h>
+-#import <Accelerate/Accelerate.h>
+-
+-
+-@interface Voice () <SFSpeechRecognizerDelegate>
+-
+-@property (nonatomic) SFSpeechRecognizer* speechRecognizer;
+-@property (nonatomic) SFSpeechAudioBufferRecognitionRequest* recognitionRequest;
+-@property (nonatomic) AVAudioEngine* audioEngine;
+-@property (nonatomic) SFSpeechRecognitionTask* recognitionTask;
+-@property (nonatomic) AVAudioSession* audioSession;
+-/** Whether speech recognition is finishing.. */
+-@property (nonatomic) BOOL isTearingDown;
+-@property (nonatomic) BOOL continuous;
+-
+-@property (nonatomic) NSString *sessionId;
+-/** Previous category the user was on prior to starting speech recognition */
+-@property (nonatomic) NSString* priorAudioCategory;
+-/** Volume level Metering*/
+-@property float averagePowerForChannel0;
+-@property float averagePowerForChannel1;
+-
+-@end
+-
+-@implementation Voice
+-{
+-}
+-
+-/** Returns "YES" if no errors had occurred */
+--(BOOL) setupAudioSession {
+-    if ([self isHeadsetPluggedIn] || [self isHeadSetBluetooth]){
+-        [self.audioSession setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionAllowBluetooth error: nil];
+-    }
+-    else {
+-        [self.audioSession setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker error: nil];
+-    }
+-    
+-    NSError* audioSessionError = nil;
+-    
+-    // Activate the audio session
+-    [self.audioSession setActive:YES withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:&audioSessionError];
+-    
+-    if (audioSessionError != nil) {
+-        [self sendResult:@{@"code": @"audio", @"message": [audioSessionError localizedDescription]} :nil :nil :nil];
+-        return NO;
+-    }
+-
+-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(teardown) name:RCTBridgeWillReloadNotification object:nil];
+-    
+-    return YES;
+-}
+-
+-- (BOOL)isHeadsetPluggedIn {
+-    AVAudioSessionRouteDescription* route = [[AVAudioSession sharedInstance] currentRoute];
+-    for (AVAudioSessionPortDescription* desc in [route outputs]) {
+-        if ([[desc portType] isEqualToString:AVAudioSessionPortHeadphones] || [[desc portType] isEqualToString:AVAudioSessionPortBluetoothA2DP])
+-            return YES;
+-    }
+-    return NO;
+-}
+-
+--(BOOL)isHeadSetBluetooth {
+-    NSArray *arrayInputs = [[AVAudioSession sharedInstance] availableInputs];
+-    for (AVAudioSessionPortDescription *port in arrayInputs)
+-    {
+-        if ([port.portType isEqualToString:AVAudioSessionPortBluetoothHFP])
+-        {
+-            return YES;
+-        }
+-    }
+-    return NO;
+-}
+-
+-- (void) teardown {
+-    self.isTearingDown = YES;
+-    [self.recognitionTask cancel];
+-    self.recognitionTask = nil;
+-    
+-    // Set back audio session category
+-    [self resetAudioSession];
+-    
+-    // End recognition request
+-    [self.recognitionRequest endAudio];
+-    
+-    // Remove tap on bus
+-    [self.audioEngine.inputNode removeTapOnBus:0];
+-    [self.audioEngine.inputNode reset];
+-    
+-    // Stop audio engine and dereference it for re-allocation
+-    if (self.audioEngine.isRunning) {
+-        [self.audioEngine stop];
+-        [self.audioEngine reset];
+-        self.audioEngine = nil;
+-    }
+-    
+-    self.recognitionRequest = nil;
+-    self.sessionId = nil;
+-    self.isTearingDown = NO;
+-}
+-
+--(void) resetAudioSession {
+-    if (self.audioSession == nil) {
+-        self.audioSession = [AVAudioSession sharedInstance];
+-    }
+-    // Set audio session to inactive and notify other sessions
+-    // [self.audioSession setActive:NO withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error: nil];
+-    NSString* audioCategory = [self.audioSession category];
+-    // Category hasn't changed -- do nothing
+-    if ([self.priorAudioCategory isEqualToString:audioCategory]) return;
+-    // Reset back to the previous category
+-    if ([self isHeadsetPluggedIn] || [self isHeadSetBluetooth]) {
+-        [self.audioSession setCategory:self.priorAudioCategory withOptions:AVAudioSessionCategoryOptionAllowBluetooth error: nil];
+-    } else {
+-        [self.audioSession setCategory:self.priorAudioCategory withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker error: nil];
+-    }
+-    // Remove pointer reference
+-    self.audioSession = nil;
+-}
+-
+-- (void) setupAndStartRecognizing:(NSString*)localeStr {
+-    self.audioSession = [AVAudioSession sharedInstance];
+-    self.priorAudioCategory = [self.audioSession category];
+-    // Tear down resources before starting speech recognition..
+-    [self teardown];
+-    
+-    self.sessionId = [[NSUUID UUID] UUIDString];
+-    
+-    NSLocale* locale = nil;
+-    if ([localeStr length] > 0) {
+-        locale = [NSLocale localeWithLocaleIdentifier:localeStr];
+-    }
+-    
+-    if (locale) {
+-        self.speechRecognizer = [[SFSpeechRecognizer alloc] initWithLocale:locale];
+-    } else {
+-        self.speechRecognizer = [[SFSpeechRecognizer alloc] init];
+-    }
+-    
+-    self.speechRecognizer.delegate = self;
+-    
+-    // Start audio session...
+-    if (![self setupAudioSession]) {
+-        [self teardown];
+-        return;
+-    }
+-    
+-    self.recognitionRequest = [[SFSpeechAudioBufferRecognitionRequest alloc] init];
+-    // Configure request so that results are returned before audio recording is finished
+-    self.recognitionRequest.shouldReportPartialResults = YES;
+-    
+-    if (self.recognitionRequest == nil) {
+-        [self sendResult:@{@"code": @"recognition_init"} :nil :nil :nil];
+-        [self teardown];
+-        return;
+-    }
+-    
+-    if (self.audioEngine == nil) {
+-        self.audioEngine = [[AVAudioEngine alloc] init];
+-    }
+-    
+-    @try {
+-    AVAudioInputNode* inputNode = self.audioEngine.inputNode;
+-    if (inputNode == nil) {
+-        [self sendResult:@{@"code": @"input"} :nil :nil :nil];
+-        [self teardown];
+-        return;
+-    }
+-    
+-    [self sendEventWithName:@"onSpeechStart" body:nil];
+-    
+-    
+-    // A recognition task represents a speech recognition session.
+-    // We keep a reference to the task so that it can be cancelled.
+-    NSString *taskSessionId = self.sessionId;
+-    self.recognitionTask = [self.speechRecognizer recognitionTaskWithRequest:self.recognitionRequest resultHandler:^(SFSpeechRecognitionResult * _Nullable result, NSError * _Nullable error) {
+-        if (![taskSessionId isEqualToString:self.sessionId]) {
+-            // session ID has changed, so ignore any capture results and error
+-            [self teardown];
+-            return;
+-        }
+-        if (error != nil) {
+-            NSString *errorMessage = [NSString stringWithFormat:@"%ld/%@", error.code, [error localizedDescription]];
+-            [self sendResult:@{@"code": @"recognition_fail", @"message": errorMessage} :nil :nil :nil];
+-            [self teardown];
+-            return;
+-        }
+-        
+-        // No result.
+-        if (result == nil) {
+-            [self sendEventWithName:@"onSpeechEnd" body:nil];
+-            [self teardown];
+-            return;
+-        }
+-        
+-        BOOL isFinal = result.isFinal;
+-        
+-        NSMutableArray* transcriptionDics = [NSMutableArray new];
+-        for (SFTranscription* transcription in result.transcriptions) {
+-            [transcriptionDics addObject:transcription.formattedString];
+-        }
+-        
+-        [self sendResult :nil :result.bestTranscription.formattedString :transcriptionDics :[NSNumber numberWithBool:isFinal]];
+-        
+-        if (isFinal || self.recognitionTask.isCancelled || self.recognitionTask.isFinishing) {
+-            [self sendEventWithName:@"onSpeechEnd" body:nil];
+-            if (!self.continuous) {
+-                [self teardown];
+-            }
+-            return;
+-        }
+-        
+-    }];
+-    
+-    AVAudioFormat* recordingFormat = [inputNode outputFormatForBus:0];
+-    AVAudioMixerNode *mixer = [[AVAudioMixerNode alloc] init];
+-    [self.audioEngine attachNode:mixer];
+-    
+-    // Start recording and append recording buffer to speech recognizer
+-    @try {
+-        [mixer installTapOnBus:0 bufferSize:1024 format:recordingFormat block:^(AVAudioPCMBuffer * _Nonnull buffer, AVAudioTime * _Nonnull when) {
+-            //Volume Level Metering
+-            UInt32 inNumberFrames = buffer.frameLength;
+-            float LEVEL_LOWPASS_TRIG = 0.5;
+-            if(buffer.format.channelCount>0)
+-            {
+-                Float32* samples = (Float32*)buffer.floatChannelData[0];
+-                Float32 avgValue = 0;
+-
+-                vDSP_maxmgv((Float32*)samples, 1, &avgValue, inNumberFrames);
+-                self.averagePowerForChannel0 = (LEVEL_LOWPASS_TRIG*((avgValue==0)?-100:20.0*log10f(avgValue))) + ((1-LEVEL_LOWPASS_TRIG)*self.averagePowerForChannel0) ;
+-                self.averagePowerForChannel1 = self.averagePowerForChannel0;
+-            }
+-
+-            if(buffer.format.channelCount>1)
+-            {
+-                Float32* samples = (Float32*)buffer.floatChannelData[1];
+-                Float32 avgValue = 0;
+-
+-                vDSP_maxmgv((Float32*)samples, 1, &avgValue, inNumberFrames);
+-                self.averagePowerForChannel1 = (LEVEL_LOWPASS_TRIG*((avgValue==0)?-100:20.0*log10f(avgValue))) + ((1-LEVEL_LOWPASS_TRIG)*self.averagePowerForChannel1) ;
+-
+-            }
+-            // Normalizing the Volume Value on scale of (0-10)
+-            self.averagePowerForChannel1 = [self _normalizedPowerLevelFromDecibels:self.averagePowerForChannel1]*10;
+-            NSNumber *value = [NSNumber numberWithFloat:self.averagePowerForChannel1];
+-            [self sendEventWithName:@"onSpeechVolumeChanged" body:@{@"value": value}];
+-            
+-            // Todo: write recording buffer to file (if user opts in)
+-            if (self.recognitionRequest != nil) {
+-                [self.recognitionRequest appendAudioPCMBuffer:buffer];
+-            }
+-        }];
+-    } @catch (NSException *exception) {
+-        NSLog(@"[Error] - %@ %@", exception.name, exception.reason);
+-        [self sendResult:@{@"code": @"start_recording", @"message": [exception reason]} :nil :nil :nil];
+-        [self teardown];
+-        return;
+-    } @finally {}
+-    
+-    [self.audioEngine connect:inputNode to:mixer format:recordingFormat];
+-    [self.audioEngine prepare];
+-    NSError* audioSessionError = nil;
+-    [self.audioEngine startAndReturnError:&audioSessionError];
+-    if (audioSessionError != nil) {
+-        [self sendResult:@{@"code": @"audio", @"message": [audioSessionError localizedDescription]} :nil :nil :nil];
+-        [self teardown];
+-        return;
+-    }
+-    }
+-    @catch (NSException *exception) {
+-    [self sendResult:@{@"code": @"start_recording", @"message": [exception reason]} :nil :nil :nil];
+-    return;
+-  }
+-}
+-
+-- (CGFloat)_normalizedPowerLevelFromDecibels:(CGFloat)decibels {
+-    if (decibels < -80.0f || decibels == 0.0f) {
+-        return 0.0f;
+-    }
+-    CGFloat power = powf((powf(10.0f, 0.05f * decibels) - powf(10.0f, 0.05f * -80.0f)) * (1.0f / (1.0f - powf(10.0f, 0.05f * -80.0f))), 1.0f / 2.0f);
+-    if (power < 1.0f) {
+-        return power;
+-    }else{
+-        return 1.0f;
+-    }
+-}
+-
+-- (NSArray<NSString *> *)supportedEvents
+-{
+-    return @[
+-             @"onSpeechResults",
+-             @"onSpeechStart",
+-             @"onSpeechPartialResults",
+-             @"onSpeechError",
+-             @"onSpeechEnd",
+-             @"onSpeechRecognized",
+-             @"onSpeechVolumeChanged"
+-             ];
+-}
+-
+-- (void) sendResult:(NSDictionary*)error :(NSString*)bestTranscription :(NSArray*)transcriptions :(NSNumber*)isFinal {
+-    if (error != nil) {
+-        [self sendEventWithName:@"onSpeechError" body:@{@"error": error}];
+-    }
+-    if (bestTranscription != nil) {
+-        [self sendEventWithName:@"onSpeechResults" body:@{@"value":@[bestTranscription]} ];
+-    }
+-    if (transcriptions != nil) {
+-        [self sendEventWithName:@"onSpeechPartialResults" body:@{@"value":transcriptions}];
+-    }
+-    if (isFinal != nil) {
+-        [self sendEventWithName:@"onSpeechRecognized" body: @{@"isFinal": isFinal}];
+-    }
+-}
+-
+-// Called when the availability of the given recognizer changes
+-- (void)speechRecognizer:(SFSpeechRecognizer *)speechRecognizer availabilityDidChange:(BOOL)available {
+-    if (available == false) {
+-        [self sendResult:RCTMakeError(@"Speech recognition is not available now", nil, nil) :nil :nil :nil];
+-    }
+-}
+-
+-RCT_EXPORT_METHOD(stopSpeech:(RCTResponseSenderBlock)callback)
+-{
+-    [self.recognitionTask finish];
+-    callback(@[@false]);
+-}
+-
+-
+-RCT_EXPORT_METHOD(cancelSpeech:(RCTResponseSenderBlock)callback) {
+-    [self.recognitionTask cancel];
+-    callback(@[@false]);
+-}
+-
+-RCT_EXPORT_METHOD(destroySpeech:(RCTResponseSenderBlock)callback) {
+-    [self teardown];
+-    callback(@[@false]);
+-}
+-
+-RCT_EXPORT_METHOD(isSpeechAvailable:(RCTResponseSenderBlock)callback) {
+-    [SFSpeechRecognizer requestAuthorization:^(SFSpeechRecognizerAuthorizationStatus status) {
+-        switch (status) {
+-            case SFSpeechRecognizerAuthorizationStatusAuthorized:
+-                callback(@[@true]);
+-                break;
+-            default:
+-                callback(@[@false]);
+-        }
+-    }];
+-}
+-RCT_EXPORT_METHOD(isRecognizing:(RCTResponseSenderBlock)callback) {
+-    if (self.recognitionTask != nil){
+-        switch (self.recognitionTask.state) {
+-            case SFSpeechRecognitionTaskStateRunning:
+-                callback(@[@true]);
+-                break;
+-            default:
+-                callback(@[@false]);
+-        }
+-    }
+-    else {
+-        callback(@[@false]);
+-    }
+-}
+-
+-RCT_EXPORT_METHOD(startSpeech:(NSString*)localeStr callback:(RCTResponseSenderBlock)callback) {
+-    if (self.recognitionTask != nil) {
+-        [self sendResult:RCTMakeError(@"Speech recognition already started!", nil, nil) :nil :nil :nil];
+-        return;
+-    }
+-    
+-    [SFSpeechRecognizer requestAuthorization:^(SFSpeechRecognizerAuthorizationStatus status) {
+-        switch (status) {
+-            case SFSpeechRecognizerAuthorizationStatusNotDetermined:
+-                [self sendResult:RCTMakeError(@"Speech recognition not yet authorized", nil, nil) :nil :nil :nil];
+-                break;
+-            case SFSpeechRecognizerAuthorizationStatusDenied:
+-                [self sendResult:RCTMakeError(@"User denied access to speech recognition", nil, nil) :nil :nil :nil];
+-                break;
+-            case SFSpeechRecognizerAuthorizationStatusRestricted:
+-                [self sendResult:RCTMakeError(@"Speech recognition restricted on this device", nil, nil) :nil :nil :nil];
+-                break;
+-            case SFSpeechRecognizerAuthorizationStatusAuthorized:
+-                [self setupAndStartRecognizing:localeStr];
+-                break;
+-        }
+-    }];
+-    callback(@[@false]);
+-}
+-
+-
+-- (dispatch_queue_t)methodQueue {
+-    return dispatch_get_main_queue();
+-}
+-
+-RCT_EXPORT_MODULE()
+-
+-
+-
+-@end
+diff --git a/node_modules/@react-native-voice/voice/ios/Voice/Voice.mm b/node_modules/@react-native-voice/voice/ios/Voice/Voice.mm
+new file mode 100644
+index 0000000..e36949e
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/ios/Voice/Voice.mm
+@@ -0,0 +1,672 @@
++#import "Voice.h"
++#import <Accelerate/Accelerate.h>
++#import <React/RCTLog.h>
++#import <React/RCTUtils.h>
++#import <Speech/Speech.h>
++#import <UIKit/UIKit.h>
++
++@interface Voice () <SFSpeechRecognizerDelegate>
++
++@property(nonatomic) SFSpeechRecognizer *speechRecognizer;
++@property(nonatomic) SFSpeechURLRecognitionRequest *recognitionUrlRequest;
++@property(nonatomic) SFSpeechAudioBufferRecognitionRequest *recognitionRequest;
++@property(nonatomic) AVAudioEngine *audioEngine;
++@property(nonatomic) SFSpeechRecognitionTask *recognitionTask;
++@property(nonatomic) AVAudioSession *audioSession;
++/** Whether speech recognition is finishing.. */
++@property(nonatomic) BOOL isTearingDown;
++@property(nonatomic) BOOL continuous;
++
++@property(nonatomic) NSString *sessionId;
++/** Previous category the user was on prior to starting speech recognition */
++@property(nonatomic) NSString *priorAudioCategory;
++/** Volume level Metering*/
++@property float averagePowerForChannel0;
++@property float averagePowerForChannel1;
++
++@end
++
++@implementation Voice {
++}
++
++
++
++///** Returns "YES" if no errors had occurred */
++- (BOOL)setupAudioSession {
++  if ([self isHeadsetPluggedIn] || [self isHeadSetBluetooth]) {
++    [self.audioSession setCategory:AVAudioSessionCategoryPlayAndRecord
++                       withOptions:AVAudioSessionCategoryOptionAllowBluetooth
++                             error:nil];
++  } else {
++    [self.audioSession setCategory:AVAudioSessionCategoryPlayAndRecord
++                       withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker
++                             error:nil];
++  }
++
++  NSError *audioSessionError = nil;
++
++  // Activate the audio session
++  [self.audioSession
++        setActive:YES
++      withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
++            error:&audioSessionError];
++
++  if (audioSessionError != nil) {
++    [self sendResult:@{
++      @"code" : @"audio",
++      @"message" : [audioSessionError localizedDescription]
++    }:nil:nil:nil];
++    return NO;
++  }
++
++  [[NSNotificationCenter defaultCenter]
++      addObserver:self
++         selector:@selector(teardown)
++             name:RCTBridgeWillReloadNotification
++           object:nil];
++
++  return YES;
++}
++
++    - (BOOL)isHeadsetPluggedIn {
++  AVAudioSessionRouteDescription *route =
++      [[AVAudioSession sharedInstance] currentRoute];
++  for (AVAudioSessionPortDescription *desc in [route outputs]) {
++    if ([[desc portType] isEqualToString:AVAudioSessionPortHeadphones] ||
++        [[desc portType] isEqualToString:AVAudioSessionPortBluetoothA2DP])
++      return YES;
++  }
++  return NO;
++}
++
++    - (BOOL)isHeadSetBluetooth {
++  NSArray *arrayInputs = [[AVAudioSession sharedInstance] availableInputs];
++  for (AVAudioSessionPortDescription *port in arrayInputs) {
++    if ([port.portType isEqualToString:AVAudioSessionPortBluetoothHFP]) {
++      return YES;
++    }
++  }
++  return NO;
++}
++
++- (void)teardown {
++  self.isTearingDown = YES;
++  [self.recognitionTask cancel];
++  self.recognitionTask = nil;
++
++  // Set back audio session category
++  [self resetAudioSession];
++
++  // End recognition request
++  [self.recognitionRequest endAudio];
++
++  // Remove tap on bus
++  [self.audioEngine.inputNode removeTapOnBus:0];
++  [self.audioEngine.inputNode reset];
++
++  // Stop audio engine and dereference it for re-allocation
++  if (self.audioEngine.isRunning) {
++    [self.audioEngine stop];
++    [self.audioEngine reset];
++    self.audioEngine = nil;
++  }
++
++  self.recognitionRequest = nil;
++  self.recognitionUrlRequest = nil;
++  self.sessionId = nil;
++  self.isTearingDown = NO;
++}
++
++- (void)resetAudioSession {
++  if (self.audioSession == nil) {
++    self.audioSession = [AVAudioSession sharedInstance];
++  }
++  // Set audio session to inactive and notify other sessions
++  // [self.audioSession setActive:NO
++  // withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:
++  // nil];
++  NSString *audioCategory = [self.audioSession category];
++  // Category hasn't changed -- do nothing
++  if ([self.priorAudioCategory isEqualToString:audioCategory])
++    return;
++  // Reset back to the previous category
++  if ([self isHeadsetPluggedIn] || [self isHeadSetBluetooth]) {
++    [self.audioSession setCategory:self.priorAudioCategory
++                       withOptions:AVAudioSessionCategoryOptionAllowBluetooth
++                             error:nil];
++  } else {
++    [self.audioSession setCategory:self.priorAudioCategory
++                       withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker
++                             error:nil];
++  }
++  // Remove pointer reference
++  self.audioSession = nil;
++}
++
++- (void)setupAndTranscribeFile:(NSString *)filePath
++                 withLocaleStr:(NSString *)localeStr {
++
++  // Tear down resources before starting speech recognition..
++  [self teardown];
++
++  self.sessionId = [[NSUUID UUID] UUIDString];
++
++  NSLocale *locale = nil;
++  if ([localeStr length] > 0) {
++    locale = [NSLocale localeWithLocaleIdentifier:localeStr];
++  }
++
++  if (locale) {
++    self.speechRecognizer = [[SFSpeechRecognizer alloc] initWithLocale:locale];
++  } else {
++    self.speechRecognizer = [[SFSpeechRecognizer alloc] init];
++  }
++
++  self.speechRecognizer.delegate = self;
++
++  [self sendEventWithName:@"onTranscriptionError"
++                     body:@{
++                       @"error" :
++                           @{@"code" : @"fake_error", @"message" : filePath}
++                     }];
++  // Set up recognition request
++  self.recognitionUrlRequest = [[SFSpeechURLRecognitionRequest alloc]
++      initWithURL:[NSURL fileURLWithPath:filePath]];
++
++  if (self.recognitionUrlRequest == nil) {
++    [self sendEventWithName:@"onTranscriptionError"
++                       body:@{@"error" : @{@"code" : @"recognition_url_init"}}];
++    [self teardown];
++    return;
++  }
++
++  @try {
++
++    [self sendEventWithName:@"onTranscriptionStart" body:nil];
++
++    // Set up recognition task
++    // A recognition task represents a speech recognition session.
++    // We keep a reference to the task so that it can be cancelled.
++    NSString *taskSessionId = self.sessionId;
++    self.recognitionTask = [self.speechRecognizer
++        recognitionTaskWithRequest:self.recognitionUrlRequest
++                     resultHandler:^(
++                         SFSpeechRecognitionResult *_Nullable result,
++                         NSError *_Nullable error) {
++                       if (![taskSessionId isEqualToString:self.sessionId]) {
++                         // session ID has changed, so ignore any capture
++                         // results and error
++                         [self teardown];
++                         return;
++                       }
++                       if (error != nil) {
++                         NSString *errorMessage = [NSString
++                             stringWithFormat:@"%ld/%@", error.code,
++                                              [error localizedDescription]];
++
++                         [self sendEventWithName:@"onTranscriptionError"
++                                            body:@{
++                                              @"error" : @{
++                                                @"code" : @"recognition_fail_o",
++                                                @"message" : errorMessage,
++                                                @"filePath" : filePath
++                                              }
++                                            }];
++                         [self teardown];
++                         return;
++                       }
++                       // No result.
++                       if (result == nil) {
++                         [self sendEventWithName:@"onTranscriptionEnd"
++                                            body:nil];
++                         [self teardown];
++                         return;
++                       }
++
++                       BOOL isFinal = result.isFinal;
++
++                       if (isFinal) {
++                         NSMutableArray *transcriptionSegs =
++                             [NSMutableArray new];
++                         for (SFTranscriptionSegment *segment in result
++                                  .bestTranscription.segments) {
++                           [transcriptionSegs addObject:@{
++                             @"transcription" : segment.substring,
++                             @"timestamp" : @(segment.timestamp),
++                             @"duration" : @(segment.duration)
++                           }];
++                         }
++
++                         [self sendEventWithName:@"onTranscriptionResults"
++                                            body:@{
++                                              @"segments" : transcriptionSegs,
++                                              @"transcription" :
++                                                  result.bestTranscription
++                                                      .formattedString,
++                                              @"isFinal" : @(isFinal)
++                                            }];
++                       }
++
++                       if (isFinal || self.recognitionTask.isCancelled ||
++                           self.recognitionTask.isFinishing) {
++                         [self sendEventWithName:@"onTranscriptionEnd"
++                                            body:nil];
++                         [self teardown];
++                         return;
++                       }
++                     }];
++  } @catch (NSException *exception) {
++    [self sendEventWithName:@"onTranscriptionError"
++                       body:@{
++                         @"error" : @{
++                           @"code" : @"start_transcription_fail",
++                           @"message" : [exception reason]
++                         }
++                       }];
++    [self teardown];
++
++    return;
++  } @finally {
++  }
++}
++
++- (void)setupAndStartRecognizing:(NSString *)localeStr {
++ self.audioSession = [AVAudioSession sharedInstance];
++ self.priorAudioCategory = [self.audioSession category];
++ // Tear down resources before starting speech recognition..
++ [self teardown];
++
++ self.sessionId = [[NSUUID UUID] UUIDString];
++
++ NSLocale *locale = nil;
++ if ([localeStr length] > 0) {
++   locale = [NSLocale localeWithLocaleIdentifier:localeStr];
++ }
++
++ if (locale) {
++   self.speechRecognizer = [[SFSpeechRecognizer alloc] initWithLocale:locale];
++ } else {
++   self.speechRecognizer = [[SFSpeechRecognizer alloc] init];
++ }
++
++ self.speechRecognizer.delegate = self;
++
++ // Start audio session...
++ if (![self setupAudioSession]) {
++   [self teardown];
++   return;
++ }
++
++ self.recognitionRequest =
++     [[SFSpeechAudioBufferRecognitionRequest alloc] init];
++ // Configure request so that results are returned before audio
++ // recording is finished
++ self.recognitionRequest.shouldReportPartialResults = YES;
++
++ if (self.recognitionRequest == nil) {
++   [self sendResult:@{@"code" : @"recognition_init"}:nil:nil:nil];
++   [self teardown];
++   return;
++ }
++
++ if (self.audioEngine == nil) {
++   self.audioEngine = [[AVAudioEngine alloc] init];
++ }
++
++ @try {
++   AVAudioInputNode *inputNode = self.audioEngine.inputNode;
++   if (inputNode == nil) {
++     [self sendResult:@{@"code" : @"input"}:nil:nil:nil];
++     [self teardown];
++     return;
++   }
++
++   [self sendEventWithName:@"onSpeechStart" body:nil];
++
++   // A recognition task represents a speech recognition session.
++   // We keep a reference to the task so that it can be cancelled.
++   NSString *taskSessionId = self.sessionId;
++   self.recognitionTask = [self.speechRecognizer
++       recognitionTaskWithRequest:self.recognitionRequest
++                    resultHandler:^(
++                        SFSpeechRecognitionResult *_Nullable result,
++                        NSError *_Nullable error) {
++                      if (![taskSessionId isEqualToString:self.sessionId]) {
++                        // session ID has changed, so ignore any
++                        // capture results and error
++                        [self teardown];
++                        return;
++                      }
++                      if (error != nil) {
++                        NSString *errorMessage = [NSString
++                            stringWithFormat:@"%ld/%@", error.code,
++                                             [error localizedDescription]];
++                        [self sendResult:@{
++                          @"code" : @"recognition_fail_ooo",
++                          @"message" : errorMessage
++                        }:nil:nil:nil];
++                        [self teardown];
++                        return;
++                      }
++
++                      // No result.
++                      if (result == nil) {
++                        [self sendEventWithName:@"onSpeechEnd" body:nil];
++                        [self teardown];
++                        return;
++                      }
++
++                      BOOL isFinal = result.isFinal;
++
++                      NSMutableArray *transcriptionDics = [NSMutableArray new];
++                      for (SFTranscription *transcription in result
++                               .transcriptions) {
++                        [transcriptionDics
++                            addObject:transcription.formattedString];
++                      }
++
++                      [self sendResult :nil :result.bestTranscription.formattedString :transcriptionDics :[NSNumber numberWithBool:isFinal]];
++
++                      if (isFinal || self.recognitionTask.isCancelled ||
++                          self.recognitionTask.isFinishing) {
++                        [self sendEventWithName:@"onSpeechEnd" body:nil];
++                        if (!self.continuous) {
++                          [self teardown];
++                        }
++                        return;
++                      }
++                    }];
++
++   AVAudioFormat *recordingFormat = [inputNode outputFormatForBus:0];
++   AVAudioMixerNode *mixer = [[AVAudioMixerNode alloc] init];
++   [self.audioEngine attachNode:mixer];
++
++   // Start recording and append recording buffer to speech recognizer
++   @try {
++     [mixer
++         installTapOnBus:0
++              bufferSize:1024
++                  format:recordingFormat
++                   block:^(AVAudioPCMBuffer *_Nonnull buffer,
++                           AVAudioTime *_Nonnull when) {
++                     // Volume Level Metering
++                     UInt32 inNumberFrames = buffer.frameLength;
++                     float LEVEL_LOWPASS_TRIG = 0.5;
++                     if (buffer.format.channelCount > 0) {
++                       Float32 *samples =
++                           (Float32 *)buffer.floatChannelData[0];
++                       Float32 avgValue = 0;
++
++                       vDSP_maxmgv((Float32 *)samples, 1, &avgValue,
++                                   inNumberFrames);
++                       self.averagePowerForChannel0 =
++                           (LEVEL_LOWPASS_TRIG *
++                            ((avgValue == 0) ? -100
++                                             : 20.0 * log10f(avgValue))) +
++                           ((1 - LEVEL_LOWPASS_TRIG) *
++                            self.averagePowerForChannel0);
++                       self.averagePowerForChannel1 =
++                           self.averagePowerForChannel0;
++                     }
++
++                     if (buffer.format.channelCount > 1) {
++                       Float32 *samples =
++                           (Float32 *)buffer.floatChannelData[1];
++                       Float32 avgValue = 0;
++
++                       vDSP_maxmgv((Float32 *)samples, 1, &avgValue,
++                                   inNumberFrames);
++                       self.averagePowerForChannel1 =
++                           (LEVEL_LOWPASS_TRIG *
++                            ((avgValue == 0) ? -100
++                                             : 20.0 * log10f(avgValue))) +
++                           ((1 - LEVEL_LOWPASS_TRIG) *
++                            self.averagePowerForChannel1);
++                     }
++                     // Normalizing the Volume Value on scale of (0-10)
++                     self.averagePowerForChannel1 =
++                         [self _normalizedPowerLevelFromDecibels:
++                                   self.averagePowerForChannel1] *
++                         10;
++                     NSNumber *value = [NSNumber
++                         numberWithFloat:self.averagePowerForChannel1];
++                     [self sendEventWithName:@"onSpeechVolumeChanged"
++                                        body:@{@"value" : value}];
++
++                     // Todo: write recording buffer to file (if user
++                     // opts in)
++                     if (self.recognitionRequest != nil) {
++                       [self.recognitionRequest appendAudioPCMBuffer:buffer];
++                     }
++                   }];
++   } @catch (NSException *exception) {
++     NSLog(@"[Error] - %@ %@", exception.name, exception.reason);
++     [self sendResult:@{
++       @"code" : @"start_recording",
++       @"message" : [exception reason]
++     }:nil:nil:nil];
++     [self teardown];
++     return;
++   } @finally {
++   }
++
++   [self.audioEngine connect:inputNode to:mixer format:recordingFormat];
++   [self.audioEngine prepare];
++   NSError *audioSessionError = nil;
++   [self.audioEngine startAndReturnError:&audioSessionError];
++   if (audioSessionError != nil) {
++     [self sendResult:@{
++       @"code" : @"audio",
++       @"message" : [audioSessionError localizedDescription]
++     }:nil:nil:nil];
++     [self teardown];
++     return;
++   }
++ } @catch (NSException *exception) {
++   [self sendResult:@{
++     @"code" : @"start_recording",
++     @"message" : [exception reason]
++   }:nil:nil:nil];
++   return;
++ }
++}
++
++- (CGFloat)_normalizedPowerLevelFromDecibels:(CGFloat)decibels {
++  if (decibels < -80.0f || decibels == 0.0f) {
++    return 0.0f;
++  }
++  CGFloat power =
++      powf((powf(10.0f, 0.05f * decibels) - powf(10.0f, 0.05f * -80.0f)) *
++               (1.0f / (1.0f - powf(10.0f, 0.05f * -80.0f))),
++           1.0f / 2.0f);
++  if (power < 1.0f) {
++    return power;
++  } else {
++    return 1.0f;
++  }
++}
++
++- (NSArray<NSString *> *)supportedEvents {
++  return @[
++    @"onSpeechResults", @"onSpeechStart", @"onSpeechPartialResults",
++    @"onSpeechError", @"onSpeechEnd", @"onSpeechRecognized",
++    @"onSpeechVolumeChanged", @"onTranscriptionStart", @"onTranscriptionEnd",
++    @"onTranscriptionError", @"onTranscriptionResults"
++  ];
++}
++
++- (void)sendResult:(NSDictionary *)
++             error:(NSString *)bestTranscription
++                  :(NSArray *)transcriptions
++                  :(NSNumber *)isFinal {
++  if (error != nil) {
++    [self sendEventWithName:@"onSpeechError" body:@{@"error" : error}];
++  }
++  if (bestTranscription != nil) {
++    [self sendEventWithName:@"onSpeechResults"
++                       body:@{@"value" : @[ bestTranscription ]}];
++  }
++  if (transcriptions != nil) {
++    [self sendEventWithName:@"onSpeechPartialResults"
++                       body:@{@"value" : transcriptions}];
++  }
++  if (isFinal != nil) {
++    [self sendEventWithName:@"onSpeechRecognized" body:@{@"isFinal" : isFinal}];
++  }
++}
++
++// Called when the availability of the given recognizer changes
++- (void)speechRecognizer:(SFSpeechRecognizer *)speechRecognizer
++    availabilityDidChange:(BOOL)available {
++  if (available == false) {
++    [self sendResult:RCTMakeError(@"Speech recognition is not available now",
++                                  nil, nil):nil:nil:nil];
++  }
++}
++
++RCT_EXPORT_METHOD(stopSpeech : (RCTResponseSenderBlock)callback) {
++  [self.recognitionTask finish];
++  callback(@[ @false ]);
++}
++
++RCT_EXPORT_METHOD(stopTranscription : (RCTResponseSenderBlock)callback) {
++  [self.recognitionTask finish];
++  callback(@[ @false ]);
++}
++
++RCT_EXPORT_METHOD(cancelSpeech : (RCTResponseSenderBlock)callback) {
++  [self.recognitionTask cancel];
++  callback(@[ @false ]);
++}
++
++RCT_EXPORT_METHOD(cancelTranscription : (RCTResponseSenderBlock)callback) {
++  [self.recognitionTask cancel];
++  callback(@[ @false ]);
++}
++
++RCT_EXPORT_METHOD(destroySpeech : (RCTResponseSenderBlock)callback) {
++  [self teardown];
++  callback(@[ @false ]);
++}
++
++RCT_EXPORT_METHOD(destroyTranscription : (RCTResponseSenderBlock)callback) {
++  [self teardown];
++  callback(@[ @false ]);
++}
++
++RCT_EXPORT_METHOD(isSpeechAvailable : (RCTResponseSenderBlock)callback) {
++  [SFSpeechRecognizer
++      requestAuthorization:^(SFSpeechRecognizerAuthorizationStatus status) {
++    switch (status) {
++      case SFSpeechRecognizerAuthorizationStatusAuthorized:
++          callback(@[ @true ]);
++        break;
++      default:
++          callback(@[ @false ]);
++    }
++  }];
++}
++RCT_EXPORT_METHOD(isRecognizing : (RCTResponseSenderBlock)callback) {
++ if (self.recognitionTask != nil) {
++   switch (self.recognitionTask.state) {
++   case SFSpeechRecognitionTaskStateRunning:
++     callback(@[ @true ]);
++     break;
++   default:
++     callback(@[ @false ]);
++   }
++ } else {
++   callback(@[ @false ]);
++ }
++}
++
++RCT_EXPORT_METHOD(startSpeech
++                 : (NSString *)localeStr callback
++                 : (RCTResponseSenderBlock)callback) {
++ if (self.recognitionTask != nil) {
++   [self sendResult:RCTMakeError(@"Speech recognition already started!", nil,
++                                 nil):nil:nil:nil];
++   return;
++ }
++
++ [SFSpeechRecognizer requestAuthorization:^(
++                         SFSpeechRecognizerAuthorizationStatus status) {
++   switch (status) {
++   case SFSpeechRecognizerAuthorizationStatusNotDetermined:
++     [self sendResult:RCTMakeError(@"Speech recognition not yet authorized",
++                                   nil, nil):nil:nil:nil];
++     break;
++   case SFSpeechRecognizerAuthorizationStatusDenied:
++     [self sendResult:RCTMakeError(@"User denied access to speech recognition",
++                                   nil, nil):nil:nil:nil];
++     break;
++   case SFSpeechRecognizerAuthorizationStatusRestricted:
++     [self sendResult:RCTMakeError(
++                          @"Speech recognition restricted on this device", nil,
++                          nil):nil:nil:nil];
++     break;
++   case SFSpeechRecognizerAuthorizationStatusAuthorized:
++     [self setupAndStartRecognizing:localeStr];
++     break;
++   }
++ }];
++ callback(@[ @false ]);
++}
++
++RCT_EXPORT_METHOD(startTranscription
++                  : (NSString *)filePath withLocaleStr
++                  : (NSString *)localeStr callback
++                  : (RCTResponseSenderBlock)callback) {
++  if (self.recognitionTask != nil) {
++    [self sendResult:RCTMakeError(@"Speech recognition already started!", nil,
++                                  nil):nil:nil:nil];
++    return;
++  }
++
++  [SFSpeechRecognizer requestAuthorization:^(
++                          SFSpeechRecognizerAuthorizationStatus status) {
++    switch (status) {
++    case SFSpeechRecognizerAuthorizationStatusNotDetermined:
++      [self sendResult:RCTMakeError(@"Speech recognition not yet authorized",
++                                    nil, nil):nil:nil:nil];
++      break;
++    case SFSpeechRecognizerAuthorizationStatusDenied:
++      [self sendResult:RCTMakeError(@"User denied access to speech recognition",
++                                    nil, nil):nil:nil:nil];
++      break;
++    case SFSpeechRecognizerAuthorizationStatusRestricted:
++      [self sendResult:RCTMakeError(
++                           @"Speech recognition restricted on this device", nil,
++                           nil):nil:nil:nil];
++      break;
++    case SFSpeechRecognizerAuthorizationStatusAuthorized:
++      [self setupAndTranscribeFile:filePath withLocaleStr:localeStr];
++      break;
++    }
++  }];
++  callback(@[ @false ]);
++}
++ 
++
++
+++ (BOOL)requiresMainQueueSetup {
++    return YES;
++}
++
++// Don't compile this code when we build for the old architecture.
++#ifdef RCT_NEW_ARCH_ENABLED
++- (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
++    (const facebook::react::ObjCTurboModule::InitParams &)params
++{
++    return std::make_shared<facebook::react::NativeVoiceIOSSpecJSI>(params);
++}
++#endif
++
++- (dispatch_queue_t)methodQueue {
++  return dispatch_get_main_queue();
++}
++
++RCT_EXPORT_MODULE()
++
++
++@end
+diff --git a/node_modules/@react-native-voice/voice/plugin/build/withVoice.d.ts b/node_modules/@react-native-voice/voice/plugin/build/withVoice.d.ts
+index 3ddbdb4..8761888 100644
+--- a/node_modules/@react-native-voice/voice/plugin/build/withVoice.d.ts
++++ b/node_modules/@react-native-voice/voice/plugin/build/withVoice.d.ts
+@@ -1,5 +1,5 @@
+-import { ConfigPlugin } from '@expo/config-plugins';
+-export declare type Props = {
++import { type ConfigPlugin } from '@expo/config-plugins';
++export type Props = {
+     /**
+      * `NSSpeechRecognitionUsageDescription` message.
+      */
+diff --git a/node_modules/@react-native-voice/voice/plugin/build/withVoice.js b/node_modules/@react-native-voice/voice/plugin/build/withVoice.js
+index ea6b98e..02aaf53 100644
+--- a/node_modules/@react-native-voice/voice/plugin/build/withVoice.js
++++ b/node_modules/@react-native-voice/voice/plugin/build/withVoice.js
+@@ -12,7 +12,7 @@ const SPEECH_RECOGNITION = 'Allow $(PRODUCT_NAME) to securely recognize user spe
+  * @returns
+  */
+ const withIosPermissions = (c, { microphonePermission, speechRecognitionPermission } = {}) => {
+-    return config_plugins_1.withInfoPlist(c, config => {
++    return (0, config_plugins_1.withInfoPlist)(c, config => {
+         if (microphonePermission !== false) {
+             config.modResults.NSMicrophoneUsageDescription =
+                 microphonePermission ||
+@@ -44,4 +44,4 @@ const withVoice = (config, props = {}) => {
+     }
+     return config;
+ };
+-exports.default = config_plugins_1.createRunOncePlugin(withVoice, pkg.name, pkg.version);
++exports.default = (0, config_plugins_1.createRunOncePlugin)(withVoice, pkg.name, pkg.version);
+diff --git a/node_modules/@react-native-voice/voice/plugin/src/withVoice.ts b/node_modules/@react-native-voice/voice/plugin/src/withVoice.ts
+index 8d9f740..d75b71d 100644
+--- a/node_modules/@react-native-voice/voice/plugin/src/withVoice.ts
++++ b/node_modules/@react-native-voice/voice/plugin/src/withVoice.ts
+@@ -1,6 +1,6 @@
+ import {
+   AndroidConfig,
+-  ConfigPlugin,
++  type ConfigPlugin,
+   createRunOncePlugin,
+   withInfoPlist,
+ } from '@expo/config-plugins';
+diff --git a/node_modules/@react-native-voice/voice/plugin/tsconfig.json b/node_modules/@react-native-voice/voice/plugin/tsconfig.json
+index 064de99..ae5c63e 100644
+--- a/node_modules/@react-native-voice/voice/plugin/tsconfig.json
++++ b/node_modules/@react-native-voice/voice/plugin/tsconfig.json
+@@ -1,5 +1,5 @@
+ {
+-    "extends": "@tsconfig/node10/tsconfig.json",
++    "extends": "@react-native/typescript-config/tsconfig.json",
+     "compilerOptions": {
+       "outDir": "build",
+       "rootDir": "src",
+diff --git a/node_modules/@react-native-voice/voice/plugin/tsconfig.tsbuildinfo b/node_modules/@react-native-voice/voice/plugin/tsconfig.tsbuildinfo
+new file mode 100644
+index 0000000..4db09bc
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/plugin/tsconfig.tsbuildinfo
+@@ -0,0 +1 @@
++{"root":["./src/withvoice.ts"],"version":"5.6.3"}
+\ No newline at end of file
+diff --git a/node_modules/@react-native-voice/voice/react-native-voice.podspec b/node_modules/@react-native-voice/voice/react-native-voice.podspec
+index dc39651..ffcdade 100644
+--- a/node_modules/@react-native-voice/voice/react-native-voice.podspec
++++ b/node_modules/@react-native-voice/voice/react-native-voice.podspec
+@@ -1,6 +1,7 @@
+ require 'json'
+ 
+-package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
++package = JSON.parse(File.read(File.join(__dir__, "package.json")))
++folly_compiler_flags = '-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -Wno-comma -Wno-shorten-64-to-32'
+ 
+ Pod::Spec.new do |s|
+   s.name         = "react-native-voice"
+@@ -12,8 +13,34 @@ Pod::Spec.new do |s|
+   s.homepage     = package['homepage']
+   s.platform     = :ios, "9.0"
+ 
++  # Link with Speech framework
++  s.frameworks   = ['Speech']
++
+   s.source       = { :git => "https://github.com/react-native-voice/voice.git" }
+-  s.source_files  = "ios/**/*.{h,m}"
++  s.source_files = "ios/**/*.{h,m,mm,cpp}"
++  
++
++
++  # Use install_modules_dependencies helper to install the dependencies if React Native version >=0.71.0.
++  # See https://github.com/facebook/react-native/blob/febf6b7f33fdb4904669f99d795eba4c0f95d7bf/scripts/cocoapods/new_architecture.rb#L79.
++  if respond_to?(:install_modules_dependencies, true)
++    install_modules_dependencies(s)
++  else
++    s.dependency "React-Core"
+ 
+-  s.dependency 'React-Core'
++    # Don't install the dependencies when we run `pod install` in the old architecture.
++    if ENV['RCT_NEW_ARCH_ENABLED'] == '1' then
++      s.compiler_flags = folly_compiler_flags + " -DRCT_NEW_ARCH_ENABLED=1"
++      s.pod_target_xcconfig    = {
++          "HEADER_SEARCH_PATHS" => "\"$(PODS_ROOT)/boost\"",
++          "OTHER_CPLUSPLUSFLAGS" => "-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1",
++          "CLANG_CXX_LANGUAGE_STANDARD" => "c++17"
++      }
++      s.dependency "React-Codegen"
++      s.dependency "RCT-Folly"
++      s.dependency "RCTRequired"
++      s.dependency "RCTTypeSafety"
++      s.dependency "ReactCommon/turbomodule/core"
++    end
++  end
+ end
+diff --git a/node_modules/@react-native-voice/voice/src/NativeVoiceAndroid.ts b/node_modules/@react-native-voice/voice/src/NativeVoiceAndroid.ts
+new file mode 100644
+index 0000000..f2ac10e
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/src/NativeVoiceAndroid.ts
+@@ -0,0 +1,28 @@
++import type { TurboModule } from 'react-native';
++import { TurboModuleRegistry } from 'react-native';
++type SpeechType = {
++  EXTRA_LANGUAGE_MODEL: string;
++  EXTRA_MAX_RESULTS: string;
++  EXTRA_PARTIAL_RESULTS: string;
++  REQUEST_PERMISSIONS_AUTO: string;
++  RECOGNIZER_ENGINE: string;
++};
++export interface Spec extends TurboModule {
++  destroySpeech: (callback: (error: string) => void) => void;
++  startSpeech: (
++    locale: string,
++    opts: SpeechType,
++    callback: (error: string) => void
++  ) => void;
++  stopSpeech: (callback: (error: string) => void) => void;
++  cancelSpeech: (callback: (error: string) => void) => void;
++  isSpeechAvailable: (
++    callback: (isAvailable: boolean, error: string) => void
++  ) => void;
++  getSpeechRecognitionServices(): Promise<string[]>;
++  isRecognizing: (callback: (Recognizing: boolean) => void) => void;
++  addListener: (eventType: string) => void;
++  removeListeners: (count: number) => void;
++}
++
++export default TurboModuleRegistry.getEnforcing<Spec>('Voice');
+diff --git a/node_modules/@react-native-voice/voice/src/NativeVoiceIOS.ts b/node_modules/@react-native-voice/voice/src/NativeVoiceIOS.ts
+new file mode 100644
+index 0000000..50b37a3
+--- /dev/null
++++ b/node_modules/@react-native-voice/voice/src/NativeVoiceIOS.ts
+@@ -0,0 +1,24 @@
++import type { TurboModule } from 'react-native';
++import { TurboModuleRegistry } from 'react-native';
++
++export interface Spec extends TurboModule {
++  destroySpeech: (callback: (error: string) => void) => void;
++  startSpeech: (locale: string, callback: (error: string) => void) => void;
++  startTranscription: (
++    locale: string,
++    callback: (error: string) => void,
++  ) => void;
++  stopSpeech: (callback: (error: string) => void) => void;
++  stopTranscription: (callback: (error: string) => void) => void;
++  cancelSpeech: (callback: (error: string) => void) => void;
++  cancelTranscription: (callback: (error: string) => void) => void;
++  isSpeechAvailable: (
++    callback: (isAvailable: boolean, error: string) => void,
++  ) => void;
++  isRecognizing: (callback: (Recognizing: boolean) => void) => void;
++  addListener: (eventType: string) => void;
++  removeListeners: (count: number) => void;
++  destroyTranscription: (callback: (error: string) => void) => void;
++}
++
++export default TurboModuleRegistry.getEnforcing<Spec>('Voice');
+diff --git a/node_modules/@react-native-voice/voice/src/VoiceModuleTypes.ts b/node_modules/@react-native-voice/voice/src/VoiceModuleTypes.ts
+index 8081d9b..53e0160 100644
+--- a/node_modules/@react-native-voice/voice/src/VoiceModuleTypes.ts
++++ b/node_modules/@react-native-voice/voice/src/VoiceModuleTypes.ts
+@@ -1,22 +1,3 @@
+-import { EventSubscriptionVendor } from 'react-native';
+-
+-type Callback = (error: string) => void;
+-
+-export type VoiceModule = {
+-  /**
+-   * Gets list of SpeechRecognitionServices used.
+-   * @platform android
+-   */
+-  getSpeechRecognitionServices: () => Promise<string[]> | void;
+-  destroySpeech: (callback: Callback) => void;
+-  startSpeech: Function;
+-  stopSpeech: (callback: Callback) => void;
+-  cancelSpeech: (callback: Callback) => void;
+-  isRecognizing: Function;
+-  isSpeechAvailable: Function;
+-} & SpeechEvents &
+-  EventSubscriptionVendor;
+-
+ export type SpeechEvents = {
+   onSpeechStart?: (e: SpeechStartEvent) => void;
+   onSpeechRecognized?: (e: SpeechRecognizedEvent) => void;
+@@ -27,10 +8,21 @@ export type SpeechEvents = {
+   onSpeechVolumeChanged?: (e: SpeechVolumeChangeEvent) => void;
+ };
+ 
++export type TranscriptionEvents = {
++  onTranscriptionStart?: (e: TranscriptionStartEvent) => void;
++  onTranscriptionEnd?: (e: TranscriptionEndEvent) => void;
++  onTranscriptionError?: (e: TranscriptionErrorEvent) => void;
++  onTranscriptionResults?: (e: TranscriptionResultsEvent) => void;
++};
++
+ export type SpeechStartEvent = {
+   error?: boolean;
+ };
+ 
++export type TranscriptionStartEvent = {
++  error?: boolean;
++};
++
+ export type SpeechRecognizedEvent = {
+   isFinal?: boolean;
+ };
+@@ -39,6 +31,12 @@ export type SpeechResultsEvent = {
+   value?: string[];
+ };
+ 
++export type TranscriptionResultsEvent = {
++  segments?: string[];
++  transcription?: string;
++  isFinal?: boolean;
++};
++
+ export type SpeechErrorEvent = {
+   error?: {
+     code?: string;
+@@ -46,10 +44,21 @@ export type SpeechErrorEvent = {
+   };
+ };
+ 
++export type TranscriptionErrorEvent = {
++  error?: {
++    code?: string;
++    message?: string;
++  };
++};
++
+ export type SpeechEndEvent = {
+   error?: boolean;
+ };
+ 
++export type TranscriptionEndEvent = {
++  error?: boolean;
++};
++
+ export type SpeechVolumeChangeEvent = {
+   value?: number;
+ };
+diff --git a/node_modules/@react-native-voice/voice/src/index.ts b/node_modules/@react-native-voice/voice/src/index.ts
+index 8b51121..71ffd04 100644
+--- a/node_modules/@react-native-voice/voice/src/index.ts
++++ b/node_modules/@react-native-voice/voice/src/index.ts
+@@ -1,31 +1,65 @@
+-import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
++import {
++  NativeModules,
++  NativeEventEmitter,
++  Platform,
++  type EventSubscription,
++} from 'react-native';
+ import invariant from 'invariant';
+ import {
+-  VoiceModule,
+-  SpeechEvents,
+-  SpeechRecognizedEvent,
+-  SpeechErrorEvent,
+-  SpeechResultsEvent,
+-  SpeechStartEvent,
+-  SpeechEndEvent,
+-  SpeechVolumeChangeEvent,
++  type SpeechEvents,
++  type TranscriptionEvents,
++  type TranscriptionEndEvent,
++  type TranscriptionErrorEvent,
++  type TranscriptionStartEvent,
++  type SpeechRecognizedEvent,
++  type SpeechErrorEvent,
++  type SpeechResultsEvent,
++  type SpeechStartEvent,
++  type SpeechEndEvent,
++  type SpeechVolumeChangeEvent,
++  type TranscriptionResultsEvent,
+ } from './VoiceModuleTypes';
+ 
+-const Voice = NativeModules.Voice as VoiceModule;
++const LINKING_ERROR =
++  `The package '@react-native-voice/voice' doesn't seem to be linked. Make sure: \n\n` +
++  Platform.select({ ios: "- You have run 'pod install'\n", default: '' }) +
++  '- You rebuilt the app after installing the package\n' +
++  '- You are not using Expo Go\n';
++
++//@ts-expect-error
++const isTurboModuleEnabled = global.__turboModuleProxy != null;
++
++const VoiceNativeModule = isTurboModuleEnabled
++  ? Platform.OS === 'android'
++    ? require('./NativeVoiceAndroid').default
++    : require('./NativeVoiceIOS').default
++  : NativeModules.Voice;
++
++const Voice = VoiceNativeModule
++  ? VoiceNativeModule
++  : new Proxy(
++      {},
++      {
++        get() {
++          throw new Error(LINKING_ERROR);
++        },
++      },
++    );
+ 
+ // NativeEventEmitter is only availabe on React Native platforms, so this conditional is used to avoid import conflicts in the browser/server
+ const voiceEmitter =
+   Platform.OS !== 'web' ? new NativeEventEmitter(Voice) : null;
+ type SpeechEvent = keyof SpeechEvents;
++type TranscriptionEvent = keyof TranscriptionEvents;
+ 
+ class RCTVoice {
+-  _loaded: boolean;
+-  _listeners: any[] | null;
+-  _events: Required<SpeechEvents>;
++  private _loaded: boolean;
++  private _listeners: EventSubscription[];
++  private _events: Required<SpeechEvents> & Required<TranscriptionEvents>;
+ 
+   constructor() {
+     this._loaded = false;
+-    this._listeners = null;
++    this._listeners = JSON.parse(JSON.stringify([]));
+     this._events = {
+       onSpeechStart: () => {},
+       onSpeechRecognized: () => {},
+@@ -34,31 +68,52 @@ class RCTVoice {
+       onSpeechResults: () => {},
+       onSpeechPartialResults: () => {},
+       onSpeechVolumeChanged: () => {},
++      onTranscriptionStart: () => {},
++      onTranscriptionEnd: () => {},
++      onTranscriptionError: () => {},
++      onTranscriptionResults: () => {},
+     };
+   }
+ 
+   removeAllListeners() {
+-    Voice.onSpeechStart = undefined;
+-    Voice.onSpeechRecognized = undefined;
+-    Voice.onSpeechEnd = undefined;
+-    Voice.onSpeechError = undefined;
+-    Voice.onSpeechResults = undefined;
+-    Voice.onSpeechPartialResults = undefined;
+-    Voice.onSpeechVolumeChanged = undefined;
++    if (this._listeners) {
++      this._listeners.forEach((listener) => {
++        if (listener?.remove) {
++          listener?.remove();
++        }
++      });
++
++      this._listeners = JSON.parse(JSON.stringify([]));
++    }
+   }
+ 
+   destroy() {
+     if (!this._loaded && !this._listeners) {
+       return Promise.resolve();
+     }
+-    return new Promise((resolve, reject) => {
++    return new Promise<void>((resolve, reject) => {
+       Voice.destroySpeech((error: string) => {
+         if (error) {
+           reject(new Error(error));
+         } else {
+-          if (this._listeners) {
+-            this._listeners.map(listener => listener.remove());
+-            this._listeners = null;
++          this.removeAllListeners();
++          resolve();
++        }
++      });
++    });
++  }
++  destroyTranscription() {
++    if (!this._loaded && !this._listeners) {
++      return Promise.resolve();
++    }
++    return new Promise<void>((resolve, reject) => {
++      Voice.destroyTranscription((error: string) => {
++        if (error) {
++          reject(new Error(error));
++        } else {
++          if (this._listeners?.length > 0) {
++            this._listeners.forEach((listener) => listener.remove());
++            this._listeners = JSON.parse(JSON.stringify([]));
+           }
+           resolve();
+         }
+@@ -66,14 +121,18 @@ class RCTVoice {
+     });
+   }
+ 
+-  start(locale: any, options = {}) {
+-    if (!this._loaded && !this._listeners && voiceEmitter !== null) {
++  start(locale: string, options = {}) {
++    if (
++      !this._loaded &&
++      this._listeners.length === 0 &&
++      voiceEmitter !== null
++    ) {
+       this._listeners = (Object.keys(this._events) as SpeechEvent[]).map(
+         (key: SpeechEvent) => voiceEmitter.addListener(key, this._events[key]),
+       );
+     }
+ 
+-    return new Promise((resolve, reject) => {
++    return new Promise<void>((resolve, reject) => {
+       const callback = (error: string) => {
+         if (error) {
+           reject(new Error(error));
+@@ -100,12 +159,62 @@ class RCTVoice {
+       }
+     });
+   }
++  startTranscription(url: string, locale: string, options = {}) {
++    if (!this._loaded && !this._listeners && voiceEmitter !== null) {
++      this._listeners = (Object.keys(this._events) as TranscriptionEvent[]).map(
++        (key: TranscriptionEvent) =>
++          voiceEmitter.addListener(key, this._events[key]),
++      );
++    }
++
++    return new Promise<void>((resolve, reject) => {
++      const callback = (error: string) => {
++        if (error) {
++          reject(new Error(error));
++        } else {
++          resolve();
++        }
++      };
++      if (Platform.OS === 'android') {
++        Voice.startTranscription(
++          url,
++          locale,
++          Object.assign(
++            {
++              EXTRA_LANGUAGE_MODEL: 'LANGUAGE_MODEL_FREE_FORM',
++              EXTRA_MAX_RESULTS: 5,
++              EXTRA_PARTIAL_RESULTS: true,
++              REQUEST_PERMISSIONS_AUTO: true,
++            },
++            options,
++          ),
++          callback,
++        );
++      } else {
++        Voice.startTranscription(url, locale, callback);
++      }
++    });
++  }
+   stop() {
+     if (!this._loaded && !this._listeners) {
+       return Promise.resolve();
+     }
+-    return new Promise((resolve, reject) => {
+-      Voice.stopSpeech(error => {
++    return new Promise<void>((resolve, reject) => {
++      Voice.stopSpeech((error?: string) => {
++        if (error) {
++          reject(new Error(error));
++        } else {
++          resolve();
++        }
++      });
++    });
++  }
++  stopTranscription() {
++    if (!this._loaded && !this._listeners) {
++      return Promise.resolve();
++    }
++    return new Promise<void>((resolve, reject) => {
++      Voice.stopTranscription((error?: string) => {
+         if (error) {
+           reject(new Error(error));
+         } else {
+@@ -118,8 +227,22 @@ class RCTVoice {
+     if (!this._loaded && !this._listeners) {
+       return Promise.resolve();
+     }
+-    return new Promise((resolve, reject) => {
+-      Voice.cancelSpeech(error => {
++    return new Promise<void>((resolve, reject) => {
++      Voice.cancelSpeech((error?: string) => {
++        if (error) {
++          reject(new Error(error));
++        } else {
++          resolve();
++        }
++      });
++    });
++  }
++  cancelTranscription() {
++    if (!this._loaded && !this._listeners) {
++      return Promise.resolve();
++    }
++    return new Promise<void>((resolve, reject) => {
++      Voice.cancelSpeech((error?: string) => {
+         if (error) {
+           reject(new Error(error));
+         } else {
+@@ -156,7 +279,7 @@ class RCTVoice {
+   }
+ 
+   isRecognizing(): Promise<0 | 1> {
+-    return new Promise(resolve => {
++    return new Promise((resolve) => {
+       Voice.isRecognizing((isRecognizing: 0 | 1) => resolve(isRecognizing));
+     });
+   }
+@@ -165,18 +288,37 @@ class RCTVoice {
+     this._events.onSpeechStart = fn;
+   }
+ 
++  set onTranscriptionStart(fn: (e: TranscriptionStartEvent) => void) {
++    this._events.onTranscriptionStart = fn;
++  }
++
+   set onSpeechRecognized(fn: (e: SpeechRecognizedEvent) => void) {
+     this._events.onSpeechRecognized = fn;
+   }
++
+   set onSpeechEnd(fn: (e: SpeechEndEvent) => void) {
+     this._events.onSpeechEnd = fn;
+   }
++
++  set onTranscriptionEnd(fn: (e: SpeechEndEvent) => void) {
++    this._events.onTranscriptionEnd = fn;
++  }
+   set onSpeechError(fn: (e: SpeechErrorEvent) => void) {
+     this._events.onSpeechError = fn;
+   }
++
++  set onTranscriptionError(fn: (e: TranscriptionErrorEvent) => void) {
++    this._events.onTranscriptionError = fn;
++  }
++
+   set onSpeechResults(fn: (e: SpeechResultsEvent) => void) {
+     this._events.onSpeechResults = fn;
+   }
++
++  set onTranscriptionResults(fn: (e: TranscriptionResultsEvent) => void) {
++    this._events.onTranscriptionResults = fn;
++  }
++
+   set onSpeechPartialResults(fn: (e: SpeechResultsEvent) => void) {
+     this._events.onSpeechPartialResults = fn;
+   }
+@@ -185,7 +327,7 @@ class RCTVoice {
+   }
+ }
+ 
+-export {
++export type {
+   SpeechEndEvent,
+   SpeechErrorEvent,
+   SpeechEvents,
+@@ -193,5 +335,10 @@ export {
+   SpeechRecognizedEvent,
+   SpeechResultsEvent,
+   SpeechVolumeChangeEvent,
++  TranscriptionEndEvent,
++  TranscriptionErrorEvent,
++  TranscriptionEvents,
++  TranscriptionStartEvent,
++  TranscriptionResultsEvent,
+ };
+ export default new RCTVoice();
+diff --git a/node_modules/@react-native-voice/voice/tsconfig.json b/node_modules/@react-native-voice/voice/tsconfig.json
+index 0c9b792..18a8f7e 100644
+--- a/node_modules/@react-native-voice/voice/tsconfig.json
++++ b/node_modules/@react-native-voice/voice/tsconfig.json
+@@ -1,19 +1,27 @@
+ {
+   "compilerOptions": {
+-    /* Basic Options */
+-    "target": "es6" /* Specify ECMAScript target version: 'ES3' (default), 'ES5', 'ES2015', 'ES2016', 'ES2017', 'ES2018', 'ES2019' or 'ESNEXT'. */,
+-    "module": "commonjs" /* Specify module code generation: 'none', 'commonjs', 'amd', 'system', 'umd', 'es2015', or 'ESNext'. */,
+-    "lib": [
+-      "ES2016"
+-    ] /* Specify library files to be included in the compilation. */,
+-    "jsx":"react",
+     "declaration": true /* Generates corresponding '.d.ts' file. */,
+     "declarationMap": true /* Generates a sourcemap for each corresponding '.d.ts' file. */,
+     "outDir": "./dist" /* Redirect output structure to the directory. */,
+     "rootDir": "./src" /* Specify the root directory of input files. Use to control the output directory structure with --outDir. */,
+     /* Strict Type-Checking Options */
+-    "strict": true /* Enable all strict type-checking options. */,
+-    "esModuleInterop": true /* Enables emit interoperability between CommonJS and ES Modules via creation of namespace objects for all imports. Implies 'allowSyntheticDefaultImports'. */
++    "allowUnreachableCode": false,
++    "allowUnusedLabels": false,
++    "esModuleInterop": true,
++    "forceConsistentCasingInFileNames": true,
++    "noEmit": false,
++    "noFallthroughCasesInSwitch": true,
++    "noImplicitReturns": true,
++    "noImplicitUseStrict": false,
++    "noStrictGenericChecks": false,
++    "noUncheckedIndexedAccess": true,
++    "noUnusedLocals": true,
++    "noUnusedParameters": true,
++    "resolveJsonModule": true,
++    "skipLibCheck": true,
++    "strict": true,
++    "verbatimModuleSyntax": true,
++    "noImplicitAny": false
+   },
+-  "include": ["src"]
++  "include": ["src/**/*"]
+ }
