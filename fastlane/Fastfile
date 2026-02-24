@@ -5,7 +5,7 @@ platform :android do
   desc "Build a signed release APK"
   lane :build_release do
     gradle(
-      task: "clean assembleRelease",
+      task: "clean bundleRelease",
       project_dir: "android/"
     )
   end
