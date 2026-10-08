@@ -15,7 +15,7 @@ interface GlassUIProps {
 }
 
 const DEFAULT_WIDTH = 200;
-const DEFAULT_HEIGHT = 200;
+const DEFAULT_HEIGHT = 210;
 const DEFAULT_BG = 'rgba(255, 255, 255, 0.01)';
 const OVERLAY_COLOR = 'rgba(255, 255, 255, 0.02)';
 
